@@ -7,6 +7,10 @@ const NAV_LINKS = [
   { href: "/players", label: "Roster" },
 ];
 
+// Authenticated pages show per-user, frequently-mutated data (roster, lineups,
+// live game stats) — never statically prerender them.
+export const dynamic = "force-dynamic";
+
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex min-h-svh flex-col">

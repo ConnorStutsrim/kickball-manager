@@ -26,3 +26,8 @@ jobs:
       - run: npm run test
 
       - run: npm run build
+        env:
+          # Build-time only: satisfies the DATABASE_URL presence check in
+          # src/db/index.ts. Authenticated pages are force-dynamic, so no
+          # real query runs at build time — this never needs to connect.
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/postgres"
