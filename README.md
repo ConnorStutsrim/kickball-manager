@@ -40,7 +40,11 @@ gives that spreadsheet a real data model behind it.
       batting order, blank scoring section for live use), shaped after the
       team's own existing spreadsheet; regenerating updates the same sheet
       rather than creating a new one
-- [ ] Season stat history feeding back into lineup suggestions
+- [x] Season stat history feeding back into lineup suggestions — batting
+      profiles blend manual scouting ratings with real stats derived from
+      plate appearances (power, placement, baserunning, bunting), weighted
+      by how much evidence exists for each specific stat, converted onto the
+      1-5 scale by percentile rank within the active roster
 
 ## Tech stack
 
@@ -84,8 +88,11 @@ The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
   "second leadoff" right before the order turns back over). Each archetype's
   skill-axis weights (power / placement / bunting / baserunning) are
   configurable, not hardcoded. Early in a season the per-player profile comes
-  from manually-entered scouting ratings; once enough plate appearances
-  exist, it will blend in real stats weighted by sample size (not built yet).
+  from manually-entered scouting ratings; as real plate appearances
+  accumulate (`src/lib/stats/`), each axis blends toward stat-derived values
+  — weighted per-axis by its own relevant sample size (total plate
+  appearances, times reached base, or bunt attempts, whichever applies),
+  not one global count.
 
 Game state during live tracking (`src/lib/game/game-state.ts`) is computed,
 not stored: whose turn it is, the inning/half/outs, and the running score are
@@ -105,9 +112,9 @@ row that could drift out of sync with the play-by-play data.
    [#5](https://github.com/ConnorStutsrim/kickball-manager/issues/5)
 5. ✅ Google Sheets export (per-game spreadsheet matching the team's real
    sheet, OAuth-connected, regenerate-in-place)
-6. ⬜ Stats-driven lineup suggestions (blend real stats into the strategy
-   engine) *(next)*
-7. ⬜ Polish: season stats dashboard, demo/seed data, deploy
+6. ✅ Stats-driven lineup suggestions — batting profiles blend season stats
+   into the qualitative ratings, weighted by per-axis sample size
+7. ⬜ Polish: season stats dashboard, demo/seed data, deploy *(next)*
 
 Smaller tracked work: see [open issues](https://github.com/ConnorStutsrim/kickball-manager/issues).
 
