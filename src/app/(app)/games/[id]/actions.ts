@@ -13,6 +13,12 @@ import {
 import { requireUser } from "@/lib/auth";
 import { solveFielding } from "@/lib/lineup/fielding-solver";
 import { buildBattingOrder } from "@/lib/lineup/batting-order";
+import { computeBattingStats } from "@/lib/stats/batting-stats";
+import { blendRating, statToRating } from "@/lib/stats/stat-scaling";
+import {
+  getSeasonBaserunningEvents,
+  getSeasonPlateAppearances,
+} from "@/lib/data/season-batting-stats";
 
 export type GenerateLineupState = { error?: string; warnings?: string[] };
 
@@ -63,14 +69,52 @@ export async function generateLineup(
     genderMinimums: rules.genderMinimums,
   });
 
+  // Blend each player's manual scouting ratings with real season stats
+  // (weighted by how much evidence exists for each stat) before building
+  // the batting order — buildBattingOrder itself doesn't know or care
+  // whether a rating is pure qualitative or partly stat-derived.
+  const [seasonPAs, seasonEvents] = await Promise.all([
+    getSeasonPlateAppearances(game.seasonId),
+    getSeasonBaserunningEvents(game.seasonId),
+  ]);
+  const rosterIds = roster.map((p) => p.id);
+  const battingStats = computeBattingStats(rosterIds, seasonPAs, seasonEvents);
+  const statsByPlayerId = new Map(battingStats.map((s) => [s.playerId, s]));
+
+  const allTotalBasesPerPA = battingStats.map((s) => s.totalBasesPerPA);
+  const allRbiPerPA = battingStats.map((s) => s.rbiPerPA);
+  const allHitRate = battingStats.map((s) => s.hitRateExcludingWalks);
+  const allAdvancementRate = battingStats.map((s) => s.advancementRate);
+  const allBuntSuccessRates = battingStats
+    .map((s) => s.buntSuccessRate)
+    .filter((rate): rate is number => rate !== null);
+
   const battingOrder = buildBattingOrder({
-    players: roster.map((p) => ({
-      id: p.id,
-      power: p.ratingPower,
-      placement: p.ratingPlacement,
-      bunting: p.ratingBunting,
-      baserunning: p.ratingBaserunning,
-    })),
+    players: roster.map((p) => {
+      const stats = statsByPlayerId.get(p.id)!;
+      const powerStatRating =
+        (statToRating(stats.totalBasesPerPA, allTotalBasesPerPA) +
+          statToRating(stats.rbiPerPA, allRbiPerPA)) /
+        2;
+      const placementStatRating = statToRating(stats.hitRateExcludingWalks, allHitRate);
+      const baserunningStatRating = statToRating(stats.advancementRate, allAdvancementRate);
+      const buntStatRating =
+        stats.buntSuccessRate !== null
+          ? statToRating(stats.buntSuccessRate, allBuntSuccessRates)
+          : null;
+
+      return {
+        id: p.id,
+        power: blendRating(p.ratingPower, powerStatRating, stats.plateAppearances),
+        placement: blendRating(p.ratingPlacement, placementStatRating, stats.plateAppearances),
+        bunting: blendRating(p.ratingBunting, buntStatRating, stats.buntAttempts),
+        baserunning: blendRating(
+          p.ratingBaserunning,
+          baserunningStatRating,
+          stats.timesReachedBase,
+        ),
+      };
+    }),
     archetypes,
   });
 

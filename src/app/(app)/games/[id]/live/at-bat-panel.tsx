@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { deleteLastPlateAppearance, recordPlateAppearance } from "./actions";
 import { RESULT_OPTIONS } from "./constants";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { PlateAppearanceResult } from "@/db/schema";
@@ -22,6 +23,7 @@ export function AtBatPanel({
   canDeleteLast: boolean;
 }) {
   const [rbi, setRbi] = useState(0);
+  const [isBunt, setIsBunt] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [pending, startTransition] = useTransition();
 
@@ -29,10 +31,14 @@ export function AtBatPanel({
     const formData = new FormData();
     formData.set("result", result);
     formData.set("rbi", String(rbi));
+    if (isBunt) formData.set("isBunt", "true");
     startTransition(async () => {
       const res = await recordPlateAppearance(gameId, {}, formData);
       setError(res.error);
-      if (!res.error) setRbi(0);
+      if (!res.error) {
+        setRbi(0);
+        setIsBunt(false);
+      }
     });
   }
 
@@ -49,17 +55,29 @@ export function AtBatPanel({
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Label htmlFor="rbi">RBI</Label>
-        <Input
-          id="rbi"
-          type="number"
-          min={0}
-          max={10}
-          value={rbi}
-          onChange={(e) => setRbi(Number(e.target.value))}
-          className="w-20"
-        />
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Label htmlFor="rbi">RBI</Label>
+          <Input
+            id="rbi"
+            type="number"
+            min={0}
+            max={10}
+            value={rbi}
+            onChange={(e) => setRbi(Number(e.target.value))}
+            className="w-20"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="isBunt"
+            checked={isBunt}
+            onCheckedChange={(checked) => setIsBunt(checked === true)}
+          />
+          <Label htmlFor="isBunt" className="font-normal">
+            Bunt attempt
+          </Label>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">

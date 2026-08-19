@@ -1,0 +1,1 @@
+ALTER TABLE "plate_appearances" ADD COLUMN "is_bunt" boolean DEFAULT false NOT NULL;

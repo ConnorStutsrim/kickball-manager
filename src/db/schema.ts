@@ -188,6 +188,10 @@ export const plateAppearances = pgTable("plate_appearances", {
   result: text("result", { enum: plateAppearanceResultEnum }).notNull(),
   rbi: integer("rbi").notNull().default(0),
   runsScored: boolean("runs_scored").notNull().default(false),
+  // Was this plate appearance a bunt attempt? Independent of `result` (a
+  // bunt can end in a single, an out, a sac, etc.) — feeds the Bunting
+  // batting-stat signal once enough bunt attempts accumulate.
+  isBunt: boolean("is_bunt").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 

@@ -21,6 +21,7 @@ export type LiveActionState = { error?: string };
 const plateAppearanceSchema = z.object({
   result: z.enum(plateAppearanceResultEnum),
   rbi: z.coerce.number().int().min(0).max(10).default(0),
+  isBunt: z.coerce.boolean().default(false),
 });
 
 export async function recordPlateAppearance(
@@ -33,6 +34,7 @@ export async function recordPlateAppearance(
   const parsed = plateAppearanceSchema.safeParse({
     result: formData.get("result"),
     rbi: formData.get("rbi") || 0,
+    isBunt: formData.get("isBunt"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
@@ -55,6 +57,7 @@ export async function recordPlateAppearance(
     result: parsed.data.result,
     rbi: parsed.data.rbi,
     runsScored: parsed.data.result === "home_run",
+    isBunt: parsed.data.isBunt,
   });
 
   revalidatePath(`/games/${gameId}/live`);
