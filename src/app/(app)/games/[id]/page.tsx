@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { GenerateLineupForm } from "./generate-lineup-form";
 import { BattingOrderList } from "./batting-order-list";
 import { FieldingGrid } from "./fielding-grid";
+import { GenerateSheetButton } from "./generate-sheet-button";
 
 export default async function GamePage(props: PageProps<"/games/[id]">) {
   const { id } = await props.params;
@@ -55,9 +56,12 @@ export default async function GamePage(props: PageProps<"/games/[id]">) {
       )}
 
       {lineup && (
-        <Button render={<Link href={`/games/${id}/live`} />} className="self-start">
-          Start live tracking
-        </Button>
+        <div className="flex flex-wrap items-center gap-4">
+          <Button render={<Link href={`/games/${id}/live`} />}>
+            Start live tracking
+          </Button>
+          <GenerateSheetButton gameId={id} initialUrl={game.sheetUrl} />
+        </div>
       )}
 
       {lineup && (

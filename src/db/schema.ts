@@ -84,6 +84,14 @@ export const leagueRules = pgTable("league_rules", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
+// Single-row: the OAuth refresh token for Connor's own Google account,
+// used to generate/update per-game Sheets exports.
+export const googleAuth = pgTable("google_auth", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  refreshToken: text("refresh_token").notNull(),
+  connectedAt: timestamp("connected_at", { withTimezone: true }).notNull().defaultNow(),
+}).enableRLS();
+
 export const seasons = pgTable("seasons", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),

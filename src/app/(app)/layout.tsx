@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/games", label: "Games" },
   { href: "/settings/league-rules", label: "League rules" },
   { href: "/settings/positions", label: "Positions" },
+  { href: "/settings/google", label: "Google Sheets" },
 ];
 
 // Authenticated pages show per-user, frequently-mutated data (roster, lineups,

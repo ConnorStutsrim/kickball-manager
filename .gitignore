@@ -46,3 +46,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# reference files with real roster data, not for the public repo
+*.xlsx
+*.xlsx:Zone.Identifier
