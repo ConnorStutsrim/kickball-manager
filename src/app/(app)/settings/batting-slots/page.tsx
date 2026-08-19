@@ -9,11 +9,12 @@ export default async function BattingSlotsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Batting slots</h1>
         <p className="text-sm text-muted-foreground">
-          Batting slot 1 is Leadoff, 2 is Table Setter, 3 is Balanced, 4 is
-          Cleanup, 5 is RBI, and every slot after that reuses Balanced. For
-          each archetype: how much each batting skill axis (from a
-          player&apos;s ratings) predicts fit for that slot. The lineup
-          generator uses these to build the batting order.
+          Batting slot 1 is Leadoff, 2 is Connector, 3 and 4 are Cleanup,
+          every slot in between reuses Balanced, and the very last batter is
+          Leadoff again (a &quot;second leadoff&quot; right before the order
+          turns back over). For each archetype: how much each batting skill
+          axis (from a player&apos;s ratings) predicts fit for that slot. The
+          lineup generator uses these to build the batting order.
         </p>
       </div>
       {archetypes.length === 0 ? (

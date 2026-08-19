@@ -13,17 +13,27 @@ export interface BattingOrderEntry {
   battingPosition: number;
 }
 
-// Classic lineup construction, now expressed as a slot -> archetype mapping
-// rather than a hardcoded formula per slot: leadoff gets on base and runs,
-// the table setter moves them over, the middle-order archetypes drive runners
-// in, and everyone past #5 (including the #3 "best all-around" slot) uses the
-// same "Balanced" archetype. Archetype weights themselves are configurable
-// (see /settings/batting-slots) — this mapping only decides which archetype
-// applies to which slot number.
-const SLOT_ARCHETYPE_NAMES = ["Leadoff", "Table Setter", "Balanced", "Cleanup", "RBI"] as const;
-
-function archetypeNameForSlot(slotNumber: number): string {
-  return SLOT_ARCHETYPE_NAMES[slotNumber - 1] ?? "Balanced";
+// Classic lineup construction, expressed as a slot -> archetype mapping
+// rather than a hardcoded formula per slot: Leadoff gets on base and runs,
+// Connector moves them over, the two Cleanup slots drive runners in, every
+// slot after that is Balanced (no particular specialty), and the very last
+// batter is Leadoff again — a "second leadoff" who bats right before the
+// order turns back over to the real leadoff. Archetype weights themselves
+// are configurable (see /settings/batting-slots) — this mapping only
+// decides which archetype applies to which slot number.
+function archetypeNameForSlot(slotNumber: number, totalSlots: number): string {
+  if (slotNumber === totalSlots) return "Leadoff";
+  switch (slotNumber) {
+    case 1:
+      return "Leadoff";
+    case 2:
+      return "Connector";
+    case 3:
+    case 4:
+      return "Cleanup";
+    default:
+      return "Balanced";
+  }
 }
 
 const FALLBACK_ARCHETYPE: BattingSlotArchetype = {
@@ -42,8 +52,10 @@ export function buildBattingOrder(input: {
   const remaining = [...input.players];
   const order: BattingOrderPlayer[] = [];
 
-  for (let slot = 1; slot <= input.players.length; slot++) {
-    const archetype = archetypeByName.get(archetypeNameForSlot(slot)) ?? FALLBACK_ARCHETYPE;
+  const totalSlots = input.players.length;
+  for (let slot = 1; slot <= totalSlots; slot++) {
+    const archetype =
+      archetypeByName.get(archetypeNameForSlot(slot, totalSlots)) ?? FALLBACK_ARCHETYPE;
 
     let bestIndex = 0;
     let bestScore = -Infinity;

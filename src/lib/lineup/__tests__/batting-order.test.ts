@@ -18,14 +18,13 @@ function player(
 
 const ARCHETYPES: BattingSlotArchetype[] = [
   { name: "Leadoff", weightPower: 0, weightPlacement: 0, weightBunting: 0, weightBaserunning: 1 },
-  { name: "Table Setter", weightPower: 0, weightPlacement: 1, weightBunting: 0, weightBaserunning: 0 },
-  { name: "Balanced", weightPower: 1, weightPlacement: 1, weightBunting: 1, weightBaserunning: 1 },
+  { name: "Connector", weightPower: 0, weightPlacement: 1, weightBunting: 0, weightBaserunning: 0 },
   { name: "Cleanup", weightPower: 1, weightPlacement: 0, weightBunting: 0, weightBaserunning: 0 },
-  { name: "RBI", weightPower: 0, weightPlacement: 0, weightBunting: 1, weightBaserunning: 0 },
+  { name: "Balanced", weightPower: 1, weightPlacement: 1, weightBunting: 1, weightBaserunning: 1 },
 ];
 
 describe("buildBattingOrder", () => {
-  it("puts the best baserunner in the leadoff slot", () => {
+  it("puts the best baserunner in the leadoff (1st) slot", () => {
     const speedster = player("speedster", { baserunning: 5, power: 1, placement: 1, bunting: 1 });
     const players = [
       player("average1"),
@@ -40,26 +39,21 @@ describe("buildBattingOrder", () => {
     expect(order[0].battingPosition).toBe(1);
   });
 
-  it("puts the best power hitter in the cleanup (4th) spot", () => {
-    // Slugger is deliberately weak elsewhere so power alone decides the
-    // cleanup spot, without also winning leadoff/table-setter/balanced.
-    const slugger = player("slugger", { power: 5, placement: 2, bunting: 2, baserunning: 2 });
-    const bestOverall = player("best-overall", {
-      power: 4,
-      placement: 4,
-      bunting: 4,
-      baserunning: 4,
-    });
+  it("puts the two best power hitters in the two Cleanup slots (3rd and 4th)", () => {
+    const sluggerA = player("sluggerA", { power: 5 });
+    const sluggerB = player("sluggerB", { power: 4 });
     const players = [
       player("filler1"),
       player("filler2"),
-      slugger,
       player("filler3"),
-      bestOverall,
+      player("filler4"),
+      sluggerA,
+      sluggerB,
     ];
 
     const order = buildBattingOrder({ players, archetypes: ARCHETYPES });
-    expect(order[3].playerId).toBe("slugger");
+    expect(order[2].playerId).toBe("sluggerA");
+    expect(order[3].playerId).toBe("sluggerB");
   });
 
   it("defaults missing ratings to neutral without crashing", () => {
@@ -79,28 +73,35 @@ describe("buildBattingOrder", () => {
     );
   });
 
-  it("assigns each of the 5 named archetypes to its slot, then orders the tail by descending Balanced score", () => {
+  it("follows the full Leadoff/Connector/Cleanup/Cleanup/Balanced.../Leadoff cycle", () => {
     const s1 = player("s1-leadoff", { baserunning: 5, power: 1, placement: 1, bunting: 1 });
-    const s2 = player("s2-tablesetter", { placement: 5, power: 1, baserunning: 1, bunting: 1 });
-    const s3 = player("s3-balanced", { power: 5, placement: 5, bunting: 5, baserunning: 5 });
-    const s4 = player("s4-cleanup", { power: 5, placement: 1, bunting: 1, baserunning: 1 });
-    const s5 = player("s5-rbi", { bunting: 5, power: 1, placement: 1, baserunning: 1 });
-    const tailLow = player("tail-low", { power: 2, placement: 2, bunting: 2, baserunning: 2 });
+    const s2 = player("s2-connector", { placement: 5, power: 1, baserunning: 1, bunting: 1 });
+    const s3 = player("s3-cleanup-a", { power: 5, placement: 1, bunting: 1, baserunning: 1 });
+    const s4 = player("s4-cleanup-b", { power: 4, placement: 1, bunting: 1, baserunning: 1 });
     const tailHigh = player("tail-high", { power: 3, placement: 3, bunting: 3, baserunning: 3 });
+    const tailLow = player("tail-low", { power: 2, placement: 2, bunting: 2, baserunning: 2 });
+    // Weak everywhere except baserunning, but not as fast as s1 — should
+    // wait out the whole order and land in the final "second leadoff" slot.
+    const secondLeadoff = player("second-leadoff", {
+      baserunning: 4,
+      power: 1,
+      placement: 1,
+      bunting: 1,
+    });
 
     const order = buildBattingOrder({
-      players: [s1, s2, s3, s4, s5, tailLow, tailHigh],
+      players: [s1, s2, s3, s4, tailHigh, tailLow, secondLeadoff],
       archetypes: ARCHETYPES,
     });
 
     expect(order.map((o) => o.playerId)).toEqual([
       "s1-leadoff",
-      "s2-tablesetter",
-      "s3-balanced",
-      "s4-cleanup",
-      "s5-rbi",
+      "s2-connector",
+      "s3-cleanup-a",
+      "s4-cleanup-b",
       "tail-high",
       "tail-low",
+      "second-leadoff",
     ]);
   });
 

@@ -26,8 +26,8 @@ gives that spreadsheet a real data model behind it.
       algorithm over each player's predicted aptitude at each position
 - [x] Configurable position model — per-position importance and skill weights
       (how much speed/catching/throwing/game-sense predicts success there)
-- [x] Batting order generator — configurable slot archetypes (Leadoff, Table
-      Setter, Balanced, Cleanup, RBI) each with their own skill-axis weights,
+- [x] Batting order generator — configurable slot archetypes (Leadoff,
+      Connector, Cleanup, Balanced) each with their own skill-axis weights,
       seeded from scouting ratings until real stats accumulate
 - [x] Manual overrides — reorder the batting order, swap fielding assignments
       per inning, after generating
@@ -79,11 +79,12 @@ The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
   sense), weighted by how predictive each axis is of that specific position
   — configurable per position, not hardcoded.
 - **Batting order strategy** — the same aptitude-weighting idea applied to
-  batting: slot 1 is the Leadoff archetype, 2 is Table Setter, 3 is Balanced,
-  4 is Cleanup, 5 is RBI, and every slot after that reuses Balanced. Each
-  archetype's skill-axis weights (power / placement / bunting / baserunning)
-  are configurable, not hardcoded. Early in a season the per-player profile
-  comes from manually-entered scouting ratings; once enough plate appearances
+  batting: slot 1 is Leadoff, 2 is Connector, 3 and 4 are Cleanup, every slot
+  in between reuses Balanced, and the very last batter is Leadoff again (a
+  "second leadoff" right before the order turns back over). Each archetype's
+  skill-axis weights (power / placement / bunting / baserunning) are
+  configurable, not hardcoded. Early in a season the per-player profile comes
+  from manually-entered scouting ratings; once enough plate appearances
   exist, it will blend in real stats weighted by sample size (not built yet).
 
 Game state during live tracking (`src/lib/game/game-state.ts`) is computed,
