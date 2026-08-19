@@ -31,9 +31,13 @@ gives that spreadsheet a real data model behind it.
       per inning, after generating
 - [x] Live game-day tracking — one-tap plate-appearance entry that auto-advances
       through the batting order, a derived (not stored) inning/outs/score state,
-      baserunning-event and defensive-note logging, per-inning scoreboard
-- [ ] One-click export of a game's lineup to a live Google Sheet (batting
-      order, fielding grid, scoring/outs tracker)
+      per-inning scoreboard. Baserunning-event and defensive-note logging are
+      built but not working in practice yet; a redesign is tracked in
+      [#5](https://github.com/ConnorStutsrim/kickball-manager/issues/5)
+- [x] Google Sheets export — one-click per-game spreadsheet (fielding grid,
+      batting order, blank scoring section for live use), shaped after the
+      team's own existing spreadsheet; regenerating updates the same sheet
+      rather than creating a new one
 - [ ] Season stat history feeding back into lineup suggestions
 
 ## Tech stack
@@ -91,9 +95,13 @@ row that could drift out of sync with the play-by-play data.
 3. ✅ Lineup generation engine (fielding solver + best-fit position assignment
    + rating-based batting order)
 4. ✅ Live game-day stat tracking (derived game state, plate appearances,
-   baserunning events, defensive notes, opponent scoring)
-5. ⬜ Google Sheets export *(next)*
-6. ⬜ Stats-driven lineup suggestions (blend real stats into the strategy engine)
+   opponent scoring) — baserunning/defensive-note logging shipped but isn't
+   working in practice; redesign tracked in
+   [#5](https://github.com/ConnorStutsrim/kickball-manager/issues/5)
+5. ✅ Google Sheets export (per-game spreadsheet matching the team's real
+   sheet, OAuth-connected, regenerate-in-place)
+6. ⬜ Stats-driven lineup suggestions (blend real stats into the strategy
+   engine) *(next)*
 7. ⬜ Polish: season stats dashboard, demo/seed data, deploy
 
 Smaller tracked work: see [open issues](https://github.com/ConnorStutsrim/kickball-manager/issues).
