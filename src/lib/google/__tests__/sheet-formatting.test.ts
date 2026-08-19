@@ -43,7 +43,7 @@ describe("buildFormatRequests", () => {
     }
   });
 
-  it("gives the fielding position rows a teal fill", () => {
+  it("gives the fielding position rows a white fill", () => {
     const { sections } = buildGameSheetGrid(baseInput());
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
     const [start, end] = sections.fieldingPositionRows;
@@ -51,29 +51,29 @@ describe("buildFormatRequests", () => {
       (c) => c.range?.startRowIndex === start && c.range?.endRowIndex === end + 1,
     );
     expect(match?.cell?.userEnteredFormat?.backgroundColor).toEqual({
-      red: 0.631,
-      green: 0.749,
-      blue: 0.804,
+      red: 1,
+      green: 1,
+      blue: 1,
     });
     expect(match?.cell?.userEnteredFormat?.textFormat?.bold).toBe(true);
   });
 
-  it("gives bench rows and batting-order data rows a pink fill", () => {
+  it("gives bench rows and batting-order data rows a grey fill", () => {
     const { sections } = buildGameSheetGrid(baseInput());
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
-    const pink = { red: 1, green: 0.8, blue: 1 };
+    const grey = { red: 0.851, green: 0.851, blue: 0.851 };
 
     const [benchStart, benchEnd] = sections.benchRows!;
     const benchMatch = cells.find(
       (c) => c.range?.startRowIndex === benchStart && c.range?.endRowIndex === benchEnd + 1,
     );
-    expect(benchMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(pink);
+    expect(benchMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(grey);
 
     const [battingStart, battingEnd] = sections.battingDataRows;
     const battingMatch = cells.find(
       (c) => c.range?.startRowIndex === battingStart && c.range?.endRowIndex === battingEnd + 1,
     );
-    expect(battingMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(pink);
+    expect(battingMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(grey);
   });
 
   it("skips a bench-fill request when there is no bench that game", () => {
@@ -84,12 +84,12 @@ describe("buildFormatRequests", () => {
     const { sections } = buildGameSheetGrid(noBenchInput);
     expect(sections.benchRows).toBeNull();
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
-    const pink = { red: 1, green: 0.8, blue: 1 };
-    const pinkFills = cells.filter(
-      (c) => JSON.stringify(c.cell?.userEnteredFormat?.backgroundColor) === JSON.stringify(pink),
+    const grey = { red: 0.851, green: 0.851, blue: 0.851 };
+    const greyFills = cells.filter(
+      (c) => JSON.stringify(c.cell?.userEnteredFormat?.backgroundColor) === JSON.stringify(grey),
     );
-    // Only the batting-order rows should be pink, not a bench section.
-    expect(pinkFills).toHaveLength(1);
+    // Only the batting-order rows should be grey, not a bench section.
+    expect(greyFills).toHaveLength(1);
   });
 
   it("gives header rows bold text and a border but no fill", () => {

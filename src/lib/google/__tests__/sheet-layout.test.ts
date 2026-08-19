@@ -31,13 +31,23 @@ describe("buildGameSheetGrid", () => {
 
   it("places each position's per-inning assignment in the right row/column", () => {
     const { grid } = buildGameSheetGrid(baseInput());
-    expect(grid[3]).toEqual(["P", "Alice", "Bob"]);
-    expect(grid[4]).toEqual(["C", "Bob", "Alice"]);
+    expect(grid[3]).toEqual(["P", "Alice", "Bob", ""]);
+    expect(grid[4]).toEqual(["C", "Bob", "Alice", ""]);
+  });
+
+  it("appends one spare tie-breaker inning column beyond the planned innings", () => {
+    const { grid, sections } = buildGameSheetGrid(baseInput());
+    expect(grid[sections.fieldingHeaderRow]).toEqual([
+      "Position",
+      "Inning 1",
+      "Inning 2",
+      "Inning 3",
+    ]);
   });
 
   it("lists bench players in a Bench row per inning", () => {
     const { grid } = buildGameSheetGrid(baseInput());
-    expect(grid[5]).toEqual(["Bench", "Carol", "Carol"]);
+    expect(grid[5]).toEqual(["Bench", "Carol", "Carol", ""]);
   });
 
   it("adds one bench row per bench slot when more than one player sits", () => {
@@ -47,8 +57,8 @@ describe("buildGameSheetGrid", () => {
       { inning: 2, position: BENCH, playerName: "Dana" },
     );
     const { grid } = buildGameSheetGrid(input);
-    expect(grid[5]).toEqual(["Bench", "Carol", "Carol"]);
-    expect(grid[6]).toEqual(["Bench", "Dana", "Dana"]);
+    expect(grid[5]).toEqual(["Bench", "Carol", "Carol", ""]);
+    expect(grid[6]).toEqual(["Bench", "Dana", "Dana", ""]);
   });
 
   it("includes the batting order with correct name/gender/order/innings", () => {
@@ -80,18 +90,23 @@ describe("buildGameSheetGrid", () => {
     const { grid } = baseInputGrid();
     const awayScore = grid.find((row) => row[0] === "Away — Score")!;
     const homeScore = grid.find((row) => row[0] === "Home — Score")!;
-    expect(String(awayScore.at(-1))).toMatch(/^=SUM\(B\d+:C\d+\)$/);
-    expect(String(homeScore.at(-1))).toMatch(/^=SUM\(B\d+:C\d+\)$/);
+    expect(String(awayScore.at(-1))).toMatch(/^=SUM\(B\d+:D\d+\)$/);
+    expect(String(homeScore.at(-1))).toMatch(/^=SUM\(B\d+:D\d+\)$/);
   });
 
   describe("sections", () => {
     it("bounds the fielding header and position rows correctly", () => {
       const { grid, sections } = baseInputGrid();
-      expect(grid[sections.fieldingHeaderRow]).toEqual(["Position", "Inning 1", "Inning 2"]);
+      expect(grid[sections.fieldingHeaderRow]).toEqual([
+        "Position",
+        "Inning 1",
+        "Inning 2",
+        "Inning 3",
+      ]);
       const [start, end] = sections.fieldingPositionRows;
-      expect(grid[start]).toEqual(["P", "Alice", "Bob"]);
-      expect(grid[end]).toEqual(["C", "Bob", "Alice"]);
-      expect(sections.fieldingColumnCount).toBe(3); // label + 2 innings
+      expect(grid[start]).toEqual(["P", "Alice", "Bob", ""]);
+      expect(grid[end]).toEqual(["C", "Bob", "Alice", ""]);
+      expect(sections.fieldingColumnCount).toBe(4); // label + 2 innings + 1 tie-breaker
     });
 
     it("bounds bench rows correctly, and reports null when there's no bench", () => {
@@ -129,7 +144,7 @@ describe("buildGameSheetGrid", () => {
       const [start, end] = sections.scoringDataRows;
       expect(grid[start][0]).toBe("Away — Outs");
       expect(grid[end][0]).toBe("Home — Outs");
-      expect(sections.scoringColumnCount).toBe(4); // label + 2 innings + total
+      expect(sections.scoringColumnCount).toBe(5); // label + 2 innings + 1 tie-breaker + total
     });
   });
 

@@ -29,7 +29,7 @@ export interface GameSheetInput {
 export interface GameSheetSections {
   fieldingHeaderRow: number;
   fieldingPositionRows: [start: number, end: number];
-  fieldingColumnCount: number; // label column + one per inning
+  fieldingColumnCount: number; // label column + one per inning (incl. the spare tie-breaker inning)
   benchRows: [start: number, end: number] | null;
   battingTitleRow: number;
   battingHeaderRow: number;
@@ -38,7 +38,7 @@ export interface GameSheetSections {
   scoringTitleRow: number;
   scoringHeaderRow: number;
   scoringDataRows: [start: number, end: number];
-  scoringColumnCount: number; // label column + one per inning + total
+  scoringColumnCount: number; // label column + one per inning (incl. tie-breaker) + total
 }
 
 export interface GameSheetBuild {
@@ -71,17 +71,22 @@ function colLetter(index0: number): string {
  *
  * Layout, roughly matching the team's existing manual spreadsheet:
  *   - header row
- *   - fielding grid: one row per position, one column per inning, plus
- *     bench rows below (bench size is constant across innings for a
+ *   - fielding grid: one row per position, one column per inning (plus one
+ *     spare tie-breaker inning beyond `innings`, for the extra inning
+ *     played when the score is still tied after the last regular inning —
+ *     left blank since the lineup engine only plans the regular innings),
+ *     plus bench rows below (bench size is constant across innings for a
  *     given lineup, since roster/field size don't change mid-game)
  *   - batting order table: order, name, gender, innings fielded, and a
  *     blank "Ups" column left for a manual in-game tally
  *   - scoring section: away (outs, score) on top, home (score, outs)
  *     below, per the team's convention — left blank for manual live use,
- *     with a running-total formula per side
+ *     with a running-total formula per side, spanning the tie-breaker
+ *     column too
  */
 export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   const { gameHeader, positions, innings, fielding, battingOrder } = input;
+  const sheetInnings = innings + 1; // regular innings + one spare tie-breaker column
   const grid: SheetGrid = [];
 
   grid.push([gameHeader]);
@@ -90,7 +95,7 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   // Fielding grid
   const fieldingHeaderRow = grid.length;
   const fieldingHeaderRowValues = ["Position"];
-  for (let inning = 1; inning <= innings; inning++)
+  for (let inning = 1; inning <= sheetInnings; inning++)
     fieldingHeaderRowValues.push(`Inning ${inning}`);
   grid.push(fieldingHeaderRowValues);
 
@@ -102,7 +107,7 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   const fieldingPositionStart = grid.length;
   for (const position of positions) {
     const row: SheetCell[] = [position];
-    for (let inning = 1; inning <= innings; inning++) {
+    for (let inning = 1; inning <= sheetInnings; inning++) {
       row.push(fieldingByPositionAndInning.get(`${position}:${inning}`) ?? BLANK);
     }
     grid.push(row);
@@ -121,7 +126,7 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   const benchStart = grid.length;
   for (let benchSlot = 0; benchSlot < benchCountInInning1; benchSlot++) {
     const row: SheetCell[] = ["Bench"];
-    for (let inning = 1; inning <= innings; inning++) {
+    for (let inning = 1; inning <= sheetInnings; inning++) {
       row.push(benchByInning.get(inning)?.[benchSlot] ?? BLANK);
     }
     grid.push(row);
@@ -149,22 +154,23 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   grid.push(["Scoring (fill in by hand)"]);
   const scoringHeaderRow = grid.length;
   const scoringHeaderRowValues = [""];
-  for (let inning = 1; inning <= innings; inning++) scoringHeaderRowValues.push(String(inning));
+  for (let inning = 1; inning <= sheetInnings; inning++)
+    scoringHeaderRowValues.push(String(inning));
   scoringHeaderRowValues.push("Total");
   grid.push(scoringHeaderRowValues);
 
   const firstInningCol = colLetter(1);
-  const lastInningCol = colLetter(innings);
+  const lastInningCol = colLetter(sheetInnings);
 
   const scoringDataStart = grid.length;
   const awayOutsRow: SheetCell[] = ["Away — Outs"];
-  for (let i = 0; i < innings; i++) awayOutsRow.push(BLANK);
+  for (let i = 0; i < sheetInnings; i++) awayOutsRow.push(BLANK);
   awayOutsRow.push(BLANK);
   grid.push(awayOutsRow);
 
   const awayScoreRowIndex = grid.length;
   const awayScoreRow: SheetCell[] = ["Away — Score"];
-  for (let i = 0; i < innings; i++) awayScoreRow.push(BLANK);
+  for (let i = 0; i < sheetInnings; i++) awayScoreRow.push(BLANK);
   awayScoreRow.push(`=SUM(${firstInningCol}${awayScoreRowIndex + 1}:${lastInningCol}${awayScoreRowIndex + 1})`);
   grid.push(awayScoreRow);
 
@@ -172,12 +178,12 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
 
   const homeScoreRowIndex = grid.length + 1;
   const homeScoreRow: SheetCell[] = ["Home — Score"];
-  for (let i = 0; i < innings; i++) homeScoreRow.push(BLANK);
+  for (let i = 0; i < sheetInnings; i++) homeScoreRow.push(BLANK);
   homeScoreRow.push(`=SUM(${firstInningCol}${homeScoreRowIndex}:${lastInningCol}${homeScoreRowIndex})`);
   grid.push(homeScoreRow);
 
   const homeOutsRow: SheetCell[] = ["Home — Outs"];
-  for (let i = 0; i < innings; i++) homeOutsRow.push(BLANK);
+  for (let i = 0; i < sheetInnings; i++) homeOutsRow.push(BLANK);
   homeOutsRow.push(BLANK);
   grid.push(homeOutsRow);
   const scoringDataEnd = grid.length - 1;
@@ -187,7 +193,7 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
     sections: {
       fieldingHeaderRow,
       fieldingPositionRows: [fieldingPositionStart, fieldingPositionEnd],
-      fieldingColumnCount: innings + 1,
+      fieldingColumnCount: sheetInnings + 1,
       benchRows,
       battingTitleRow,
       battingHeaderRow,
@@ -196,7 +202,7 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
       scoringTitleRow,
       scoringHeaderRow,
       scoringDataRows: [scoringDataStart, scoringDataEnd],
-      scoringColumnCount: innings + 2,
+      scoringColumnCount: sheetInnings + 2,
     },
   };
 }
