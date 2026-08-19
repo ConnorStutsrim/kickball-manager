@@ -29,8 +29,9 @@ gives that spreadsheet a real data model behind it.
       ratings until real stats accumulate
 - [x] Manual overrides — reorder the batting order, swap fielding assignments
       per inning, after generating
-- [ ] Game-day stat tracking — plate appearance outcomes, baserunning events,
-      qualitative defensive notes
+- [x] Live game-day tracking — one-tap plate-appearance entry that auto-advances
+      through the batting order, a derived (not stored) inning/outs/score state,
+      baserunning-event and defensive-note logging, per-inning scoreboard
 - [ ] One-click export of a game's lineup to a live Google Sheet (batting
       order, fielding grid, scoring/outs tracker)
 - [ ] Season stat history feeding back into lineup suggestions
@@ -77,14 +78,21 @@ The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
   from manually-entered scouting ratings; once enough plate appearances exist,
   it will blend in real stats weighted by sample size (not built yet).
 
+Game state during live tracking (`src/lib/game/game-state.ts`) is computed,
+not stored: whose turn it is, the inning/half/outs, and the running score are
+all derived from the recorded plate appearances, baserunning events, and
+opponent per-inning runs on every read — there's no separate "current state"
+row that could drift out of sync with the play-by-play data.
+
 ## Roadmap
 
 1. ✅ Repo scaffold
 2. ✅ Core schema + CRUD (players, league rules, positions, seasons, games)
 3. ✅ Lineup generation engine (fielding solver + best-fit position assignment
    + rating-based batting order)
-4. ⬜ Game-day stat tracking UI *(next)*
-5. ⬜ Google Sheets export
+4. ✅ Live game-day stat tracking (derived game state, plate appearances,
+   baserunning events, defensive notes, opponent scoring)
+5. ⬜ Google Sheets export *(next)*
 6. ⬜ Stats-driven lineup suggestions (blend real stats into the strategy engine)
 7. ⬜ Polish: season stats dashboard, demo/seed data, deploy
 
