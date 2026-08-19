@@ -16,17 +16,19 @@ gives that spreadsheet a real data model behind it.
 ## Features
 
 - [x] Roster management with per-player baseline scouting ratings (batting:
-      contact / power / speed / plate discipline; fielding: catching /
-      throwing / game sense — speed pulls double duty for both)
+      power / placement / bunting / baserunning; fielding: speed / catching /
+      throwing / game sense — baserunning and fielding speed are kept as
+      separate axes on purpose, since they're correlated but not the same
+      skill)
 - [x] Fielding rotation generator — equal field-innings per player (seeded
       round-robin bench rotation), the league's per-inning gender minimums
       enforced, and best-fit position assignment via a from-scratch Hungarian
       algorithm over each player's predicted aptitude at each position
 - [x] Configurable position model — per-position importance and skill weights
       (how much speed/catching/throwing/game-sense predicts success there)
-- [x] Batting order generator using classic lineup-construction strategy
-      (on-base hitters early, power/RBI hitters middle), seeded from scouting
-      ratings until real stats accumulate
+- [x] Batting order generator — configurable slot archetypes (Leadoff, Table
+      Setter, Balanced, Cleanup, RBI) each with their own skill-axis weights,
+      seeded from scouting ratings until real stats accumulate
 - [x] Manual overrides — reorder the batting order, swap fielding assignments
       per inning, after generating
 - [x] Live game-day tracking — one-tap plate-appearance entry that auto-advances
@@ -76,11 +78,13 @@ The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
   weighted average of their skill axes (speed / catching / throwing / game
   sense), weighted by how predictive each axis is of that specific position
   — configurable per position, not hardcoded.
-- **Batting order strategy** — applies classic lineup-construction heuristics
-  (leadoff = on-base + speed, #3 = best hitter, cleanup = power/RBI, etc.) on
-  top of a per-player "strength profile." Early in a season that profile comes
-  from manually-entered scouting ratings; once enough plate appearances exist,
-  it will blend in real stats weighted by sample size (not built yet).
+- **Batting order strategy** — the same aptitude-weighting idea applied to
+  batting: slot 1 is the Leadoff archetype, 2 is Table Setter, 3 is Balanced,
+  4 is Cleanup, 5 is RBI, and every slot after that reuses Balanced. Each
+  archetype's skill-axis weights (power / placement / bunting / baserunning)
+  are configurable, not hardcoded. Early in a season the per-player profile
+  comes from manually-entered scouting ratings; once enough plate appearances
+  exist, it will blend in real stats weighted by sample size (not built yet).
 
 Game state during live tracking (`src/lib/game/game-state.ts`) is computed,
 not stored: whose turn it is, the inning/half/outs, and the running score are
