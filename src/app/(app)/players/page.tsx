@@ -12,10 +12,11 @@ import {
 import { PlayerRowActions } from "./player-row-actions";
 
 const RATING_COLUMNS = [
-  { key: "ratingContact", label: "Con" },
   { key: "ratingPower", label: "Pow" },
+  { key: "ratingPlacement", label: "Plc" },
+  { key: "ratingBunting", label: "Bnt" },
+  { key: "ratingBaserunning", label: "BR" },
   { key: "ratingSpeed", label: "Spd" },
-  { key: "ratingPlateDiscipline", label: "Dis" },
   { key: "ratingCatching", label: "Cat" },
   { key: "ratingThrowing", label: "Thr" },
   { key: "ratingGameSense", label: "Sns" },

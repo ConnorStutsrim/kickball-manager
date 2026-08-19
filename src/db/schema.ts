@@ -45,12 +45,16 @@ export const players = pgTable("players", {
   active: boolean("active").notNull().default(true),
   // Baseline qualitative attribute ratings (1-5), used as the lineup-construction
   // prior before enough real plate appearances exist to derive stats from.
-  ratingContact: smallint("rating_contact"),
+  // Batting skill axes (predict batting-slot-archetype fit via
+  // batting_slot_archetypes.weight_*).
   ratingPower: smallint("rating_power"),
-  // Speed doubles as a fielding-range signal in the position-aptitude model.
-  ratingSpeed: smallint("rating_speed"),
-  ratingPlateDiscipline: smallint("rating_plate_discipline"),
+  ratingPlacement: smallint("rating_placement"),
+  ratingBunting: smallint("rating_bunting"),
+  ratingBaserunning: smallint("rating_baserunning"),
   // Fielding skill axes (predict position aptitude via positions.weight_*).
+  // Speed is fielding-range only — baserunning above is the batting analog,
+  // a related but distinct skill.
+  ratingSpeed: smallint("rating_speed"),
   ratingCatching: smallint("rating_catching"),
   ratingThrowing: smallint("rating_throwing"),
   ratingGameSense: smallint("rating_game_sense"),
@@ -70,6 +74,20 @@ export const positions = pgTable("positions", {
   weightCatching: smallint("weight_catching").notNull(),
   weightThrowing: smallint("weight_throwing").notNull(),
   weightGameSense: smallint("weight_game_sense").notNull(),
+}).enableRLS();
+
+// One row per batting-order-slot archetype (Leadoff, Table Setter, Balanced,
+// Cleanup, RBI): how much each batting skill axis predicts fit for that
+// archetype. Slot number -> archetype name is a fixed mapping in code
+// (src/lib/lineup/batting-order.ts); only the per-archetype weights here
+// are configurable.
+export const battingSlotArchetypes = pgTable("batting_slot_archetypes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  weightPower: smallint("weight_power").notNull(),
+  weightPlacement: smallint("weight_placement").notNull(),
+  weightBunting: smallint("weight_bunting").notNull(),
+  weightBaserunning: smallint("weight_baserunning").notNull(),
 }).enableRLS();
 
 // Single-row config table: gender minimums, innings per game, etc.

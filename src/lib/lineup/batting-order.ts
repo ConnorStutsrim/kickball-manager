@@ -1,11 +1,11 @@
-const NEUTRAL_RATING = 3;
+import {
+  battingAptitude,
+  type BatterSkills,
+  type BattingSlotArchetype,
+} from "./batting-aptitude";
 
-export interface BattingOrderPlayer {
+export interface BattingOrderPlayer extends BatterSkills {
   id: string;
-  ratingContact: number | null;
-  ratingPower: number | null;
-  ratingSpeed: number | null;
-  ratingPlateDiscipline: number | null;
 }
 
 export interface BattingOrderEntry {
@@ -13,68 +13,49 @@ export interface BattingOrderEntry {
   battingPosition: number;
 }
 
-function rating(value: number | null): number {
-  return value ?? NEUTRAL_RATING;
+// Classic lineup construction, now expressed as a slot -> archetype mapping
+// rather than a hardcoded formula per slot: leadoff gets on base and runs,
+// the table setter moves them over, the middle-order archetypes drive runners
+// in, and everyone past #5 (including the #3 "best all-around" slot) uses the
+// same "Balanced" archetype. Archetype weights themselves are configurable
+// (see /settings/batting-slots) — this mapping only decides which archetype
+// applies to which slot number.
+const SLOT_ARCHETYPE_NAMES = ["Leadoff", "Table Setter", "Balanced", "Cleanup", "RBI"] as const;
+
+function archetypeNameForSlot(slotNumber: number): string {
+  return SLOT_ARCHETYPE_NAMES[slotNumber - 1] ?? "Balanced";
 }
 
-function overallScore(p: BattingOrderPlayer): number {
-  return (
-    (rating(p.ratingContact) +
-      rating(p.ratingPower) +
-      rating(p.ratingSpeed) +
-      rating(p.ratingPlateDiscipline)) /
-    4
-  );
-}
-
-function leadoffScore(p: BattingOrderPlayer): number {
-  return (rating(p.ratingSpeed) + rating(p.ratingPlateDiscipline)) / 2;
-}
-
-function powerContactBlend(p: BattingOrderPlayer): number {
-  return (rating(p.ratingPower) + rating(p.ratingContact)) / 2;
-}
-
-// Classic lineup construction: leadoff gets on base and runs, #2 moves them
-// over, #3 is the best all-around hitter, #4/#5 drive runners in, everyone
-// else fills out the order by overall strength.
-const SLOT_SCORERS: ((p: BattingOrderPlayer) => number)[] = [
-  leadoffScore,
-  (p) => rating(p.ratingContact),
-  overallScore,
-  (p) => rating(p.ratingPower),
-  powerContactBlend,
-];
+const FALLBACK_ARCHETYPE: BattingSlotArchetype = {
+  name: "Balanced",
+  weightPower: 0,
+  weightPlacement: 0,
+  weightBunting: 0,
+  weightBaserunning: 0,
+};
 
 export function buildBattingOrder(input: {
   players: BattingOrderPlayer[];
+  archetypes: BattingSlotArchetype[];
 }): BattingOrderEntry[] {
+  const archetypeByName = new Map(input.archetypes.map((a) => [a.name, a]));
   const remaining = [...input.players];
   const order: BattingOrderPlayer[] = [];
 
-  function takeBest(
-    scoreFn: (p: BattingOrderPlayer) => number,
-  ): BattingOrderPlayer | undefined {
-    if (remaining.length === 0) return undefined;
+  for (let slot = 1; slot <= input.players.length; slot++) {
+    const archetype = archetypeByName.get(archetypeNameForSlot(slot)) ?? FALLBACK_ARCHETYPE;
+
     let bestIndex = 0;
     let bestScore = -Infinity;
     for (let i = 0; i < remaining.length; i++) {
-      const score = scoreFn(remaining[i]);
+      const score = battingAptitude(remaining[i], archetype);
       if (score > bestScore) {
         bestScore = score;
         bestIndex = i;
       }
     }
-    return remaining.splice(bestIndex, 1)[0];
+    order.push(remaining.splice(bestIndex, 1)[0]);
   }
-
-  for (const scoreFn of SLOT_SCORERS) {
-    const player = takeBest(scoreFn);
-    if (player) order.push(player);
-  }
-
-  remaining.sort((a, b) => overallScore(b) - overallScore(a));
-  order.push(...remaining);
 
   return order.map((p, i) => ({ playerId: p.id, battingPosition: i + 1 }));
 }

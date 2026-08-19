@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "/games", label: "Games" },
   { href: "/settings/league-rules", label: "League rules" },
   { href: "/settings/positions", label: "Positions" },
+  { href: "/settings/batting-slots", label: "Batting slots" },
   { href: "/settings/google", label: "Google Sheets" },
 ];
 

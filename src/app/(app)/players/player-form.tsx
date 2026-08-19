@@ -15,13 +15,14 @@ import {
 import type { Player } from "@/lib/data/players";
 
 const BATTING_RATING_FIELDS = [
-  { name: "ratingContact", label: "Contact" },
   { name: "ratingPower", label: "Power" },
-  { name: "ratingSpeed", label: "Speed" },
-  { name: "ratingPlateDiscipline", label: "Plate discipline" },
+  { name: "ratingPlacement", label: "Placement" },
+  { name: "ratingBunting", label: "Bunting" },
+  { name: "ratingBaserunning", label: "Baserunning" },
 ] as const;
 
 const FIELDING_RATING_FIELDS = [
+  { name: "ratingSpeed", label: "Speed" },
   { name: "ratingCatching", label: "Catching" },
   { name: "ratingThrowing", label: "Throwing" },
   { name: "ratingGameSense", label: "Game sense" },
@@ -81,8 +82,7 @@ export function PlayerForm({
 
       <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <legend className="col-span-full text-sm font-medium text-muted-foreground">
-          Fielding ratings (1-5, optional) — Speed above is reused for
-          fielding range too
+          Fielding ratings (1-5, optional)
         </legend>
         {FIELDING_RATING_FIELDS.map((field) => (
           <div key={field.name} className="flex flex-col gap-2">

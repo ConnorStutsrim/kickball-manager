@@ -28,10 +28,11 @@ export async function generateLineup(
     return { error: "Select at least one player who is present." };
   }
 
-  const [game, rules, positionProfiles, allPlayers] = await Promise.all([
+  const [game, rules, positionProfiles, archetypes, allPlayers] = await Promise.all([
     db.query.games.findFirst({ where: eq(games.id, gameId) }),
     db.query.leagueRules.findFirst(),
     db.query.positions.findMany({ orderBy: [asc(positions.displayOrder)] }),
+    db.query.battingSlotArchetypes.findMany(),
     db.query.players.findMany(),
   ]);
 
@@ -65,11 +66,12 @@ export async function generateLineup(
   const battingOrder = buildBattingOrder({
     players: roster.map((p) => ({
       id: p.id,
-      ratingContact: p.ratingContact,
-      ratingPower: p.ratingPower,
-      ratingSpeed: p.ratingSpeed,
-      ratingPlateDiscipline: p.ratingPlateDiscipline,
+      power: p.ratingPower,
+      placement: p.ratingPlacement,
+      bunting: p.ratingBunting,
+      baserunning: p.ratingBaserunning,
     })),
+    archetypes,
   });
 
   await db.transaction(async (tx) => {
