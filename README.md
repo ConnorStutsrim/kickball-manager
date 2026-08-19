@@ -13,15 +13,22 @@ build all of that into a lineup by hand — then track outs and scoring on a
 spreadsheet during the game. This app automates the lineup construction and
 gives that spreadsheet a real data model behind it.
 
-## Features (in progress)
+## Features
 
-- [ ] Roster management with per-player baseline scouting ratings
-      (contact / power / speed / plate discipline / fielding)
-- [ ] Fielding rotation generator — equal innings per player, gender-position
-      limits enforced, position variety maximized
-- [ ] Batting order generator using classic lineup-construction strategy
+- [x] Roster management with per-player baseline scouting ratings (batting:
+      contact / power / speed / plate discipline; fielding: catching /
+      throwing / game sense — speed pulls double duty for both)
+- [x] Fielding rotation generator — equal field-innings per player (seeded
+      round-robin bench rotation), the league's per-inning gender minimums
+      enforced, and best-fit position assignment via a from-scratch Hungarian
+      algorithm over each player's predicted aptitude at each position
+- [x] Configurable position model — per-position importance and skill weights
+      (how much speed/catching/throwing/game-sense predicts success there)
+- [x] Batting order generator using classic lineup-construction strategy
       (on-base hitters early, power/RBI hitters middle), seeded from scouting
       ratings until real stats accumulate
+- [x] Manual overrides — reorder the batting order, swap fielding assignments
+      per inning, after generating
 - [ ] Game-day stat tracking — plate appearance outcomes, baserunning events,
       qualitative defensive notes
 - [ ] One-click export of a game's lineup to a live Google Sheet (batting
@@ -53,26 +60,35 @@ gives that spreadsheet a real data model behind it.
                               └──────────────────────┘
 ```
 
-The lineup engine is a pair of pure, unit-tested functions:
+The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
 
-- **Fielding rotation solver** — given a roster, configured positions, innings,
-  and gender-position limits, produces an inning × player grid where field
-  time is equalized and every inning respects the gender rules.
+- **Fielding rotation solver** — bench rotation keeps field-innings equal per
+  player (seeded round-robin), a repair step enforces the league's per-inning
+  gender minimums, and position assignment is a pure best-fit optimization:
+  an importance-weighted optimal assignment (Hungarian algorithm) over each
+  player's predicted aptitude at every position.
+- **Position aptitude** — predicts a player's fit for a position as a
+  weighted average of their skill axes (speed / catching / throwing / game
+  sense), weighted by how predictive each axis is of that specific position
+  — configurable per position, not hardcoded.
 - **Batting order strategy** — applies classic lineup-construction heuristics
   (leadoff = on-base + speed, #3 = best hitter, cleanup = power/RBI, etc.) on
   top of a per-player "strength profile." Early in a season that profile comes
   from manually-entered scouting ratings; once enough plate appearances exist,
-  it blends in real stats weighted by sample size.
+  it will blend in real stats weighted by sample size (not built yet).
 
 ## Roadmap
 
-1. Repo scaffold (this commit)
-2. Core schema + CRUD (players, league rules, seasons, games)
-3. Lineup generation engine v1 (fielding solver + rating-based batting order)
-4. Game-day stat tracking UI
-5. Google Sheets export
-6. Stats-driven lineup suggestions (blend real stats into the strategy engine)
-7. Polish: season stats dashboard, demo/seed data, deploy
+1. ✅ Repo scaffold
+2. ✅ Core schema + CRUD (players, league rules, positions, seasons, games)
+3. ✅ Lineup generation engine (fielding solver + best-fit position assignment
+   + rating-based batting order)
+4. ⬜ Game-day stat tracking UI *(next)*
+5. ⬜ Google Sheets export
+6. ⬜ Stats-driven lineup suggestions (blend real stats into the strategy engine)
+7. ⬜ Polish: season stats dashboard, demo/seed data, deploy
+
+Smaller tracked work: see [open issues](https://github.com/ConnorStutsrim/kickball-manager/issues).
 
 ## Local development
 
