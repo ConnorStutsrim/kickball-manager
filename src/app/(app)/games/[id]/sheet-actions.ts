@@ -10,7 +10,8 @@ import { getGameLineup } from "@/lib/data/lineups";
 import { getPositions } from "@/lib/data/positions";
 import { getPlayers } from "@/lib/data/players";
 import { getSheetsClient } from "@/lib/google/client";
-import { buildGameSheetGrid, type SheetGrid } from "@/lib/google/sheet-layout";
+import { buildGameSheetGrid } from "@/lib/google/sheet-layout";
+import { buildFormatRequests } from "@/lib/google/sheet-formatting";
 import { BENCH } from "@/lib/lineup/fielding-solver";
 
 export interface GenerateSheetResult {
@@ -55,7 +56,7 @@ export async function generateGameSheet(gameId: string): Promise<GenerateSheetRe
     .filter(Boolean)
     .join(" ");
 
-  const grid: SheetGrid = buildGameSheetGrid({
+  const { grid, sections } = buildGameSheetGrid({
     gameHeader,
     positions: positions.map((p) => p.name),
     innings: game.inningsPlanned,
@@ -81,6 +82,7 @@ export async function generateGameSheet(gameId: string): Promise<GenerateSheetRe
   }
 
   let spreadsheetId: string;
+  let sheetId: number;
   let url: string;
 
   const existingId = game.sheetUrl ? extractSpreadsheetId(game.sheetUrl) : undefined;
@@ -88,6 +90,11 @@ export async function generateGameSheet(gameId: string): Promise<GenerateSheetRe
     spreadsheetId = existingId;
     url = game.sheetUrl!;
     await sheets.spreadsheets.values.clear({ spreadsheetId, range: "A1:Z200" });
+    const existing = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: "sheets.properties.sheetId",
+    });
+    sheetId = existing.data.sheets![0].properties!.sheetId!;
   } else {
     const created = await sheets.spreadsheets.create({
       requestBody: {
@@ -95,6 +102,7 @@ export async function generateGameSheet(gameId: string): Promise<GenerateSheetRe
       },
     });
     spreadsheetId = created.data.spreadsheetId!;
+    sheetId = created.data.sheets![0].properties!.sheetId!;
     url = created.data.spreadsheetUrl!;
     await db.update(games).set({ sheetUrl: url }).where(eq(games.id, gameId));
   }
@@ -104,6 +112,11 @@ export async function generateGameSheet(gameId: string): Promise<GenerateSheetRe
     range: "A1",
     valueInputOption: "USER_ENTERED",
     requestBody: { values: grid },
+  });
+
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: { requests: buildFormatRequests(sheetId, sections) },
   });
 
   revalidatePath(`/games/${gameId}`);

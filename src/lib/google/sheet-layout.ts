@@ -24,6 +24,28 @@ export interface GameSheetInput {
   battingOrder: SheetBattingOrderEntry[];
 }
 
+/** 0-indexed row/column boundaries of each section, for building matching
+ * visual-formatting requests without re-deriving the row math a second time. */
+export interface GameSheetSections {
+  fieldingHeaderRow: number;
+  fieldingPositionRows: [start: number, end: number];
+  fieldingColumnCount: number; // label column + one per inning
+  benchRows: [start: number, end: number] | null;
+  battingTitleRow: number;
+  battingHeaderRow: number;
+  battingDataRows: [start: number, end: number];
+  battingColumnCount: number;
+  scoringTitleRow: number;
+  scoringHeaderRow: number;
+  scoringDataRows: [start: number, end: number];
+  scoringColumnCount: number; // label column + one per inning + total
+}
+
+export interface GameSheetBuild {
+  grid: SheetGrid;
+  sections: GameSheetSections;
+}
+
 const BLANK = "";
 
 function colLetter(index0: number): string {
@@ -42,7 +64,10 @@ function colLetter(index0: number): string {
  * Builds the full contents of a per-game spreadsheet as a single 2D grid,
  * starting at A1, ready to write via `spreadsheets.values.update` with
  * valueInputOption "USER_ENTERED" (so the SUM formula strings are
- * interpreted as formulas, not literal text).
+ * interpreted as formulas, not literal text) — plus the row/column
+ * boundaries of each section, so matching visual formatting can be applied
+ * without re-deriving this layout math a second time (see
+ * sheet-formatting.ts).
  *
  * Layout, roughly matching the team's existing manual spreadsheet:
  *   - header row
@@ -55,7 +80,7 @@ function colLetter(index0: number): string {
  *     below, per the team's convention — left blank for manual live use,
  *     with a running-total formula per side
  */
-export function buildGameSheetGrid(input: GameSheetInput): SheetGrid {
+export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   const { gameHeader, positions, innings, fielding, battingOrder } = input;
   const grid: SheetGrid = [];
 
@@ -63,15 +88,18 @@ export function buildGameSheetGrid(input: GameSheetInput): SheetGrid {
   grid.push([]);
 
   // Fielding grid
-  const fieldingHeaderRow = ["Position"];
-  for (let inning = 1; inning <= innings; inning++) fieldingHeaderRow.push(`Inning ${inning}`);
-  grid.push(fieldingHeaderRow);
+  const fieldingHeaderRow = grid.length;
+  const fieldingHeaderRowValues = ["Position"];
+  for (let inning = 1; inning <= innings; inning++)
+    fieldingHeaderRowValues.push(`Inning ${inning}`);
+  grid.push(fieldingHeaderRowValues);
 
   const fieldingByPositionAndInning = new Map<string, string>();
   for (const entry of fielding) {
     fieldingByPositionAndInning.set(`${entry.position}:${entry.inning}`, entry.playerName);
   }
 
+  const fieldingPositionStart = grid.length;
   for (const position of positions) {
     const row: SheetCell[] = [position];
     for (let inning = 1; inning <= innings; inning++) {
@@ -79,6 +107,7 @@ export function buildGameSheetGrid(input: GameSheetInput): SheetGrid {
     }
     grid.push(row);
   }
+  const fieldingPositionEnd = grid.length - 1;
 
   const benchCountInInning1 = fielding.filter(
     (f) => f.position === BENCH && f.inning === 1,
@@ -89,6 +118,7 @@ export function buildGameSheetGrid(input: GameSheetInput): SheetGrid {
     if (!benchByInning.has(entry.inning)) benchByInning.set(entry.inning, []);
     benchByInning.get(entry.inning)!.push(entry.playerName);
   }
+  const benchStart = grid.length;
   for (let benchSlot = 0; benchSlot < benchCountInInning1; benchSlot++) {
     const row: SheetCell[] = ["Bench"];
     for (let inning = 1; inning <= innings; inning++) {
@@ -96,28 +126,37 @@ export function buildGameSheetGrid(input: GameSheetInput): SheetGrid {
     }
     grid.push(row);
   }
+  const benchRows: [number, number] | null =
+    benchCountInInning1 > 0 ? [benchStart, grid.length - 1] : null;
 
   grid.push([]);
 
   // Batting order
+  const battingTitleRow = grid.length;
   grid.push(["Batting Order"]);
+  const battingHeaderRow = grid.length;
   grid.push(["Order", "Name", "Gender", "Innings Fielded", "Ups"]);
+  const battingDataStart = grid.length;
   for (const entry of battingOrder) {
     grid.push([entry.battingPosition, entry.playerName, entry.gender, entry.inningsFielded, BLANK]);
   }
+  const battingDataEnd = grid.length - 1;
 
   grid.push([]);
 
   // Scoring section (blank, filled in by hand during the game)
+  const scoringTitleRow = grid.length;
   grid.push(["Scoring (fill in by hand)"]);
-  const scoringHeaderRow = [""];
-  for (let inning = 1; inning <= innings; inning++) scoringHeaderRow.push(String(inning));
-  scoringHeaderRow.push("Total");
-  grid.push(scoringHeaderRow);
+  const scoringHeaderRow = grid.length;
+  const scoringHeaderRowValues = [""];
+  for (let inning = 1; inning <= innings; inning++) scoringHeaderRowValues.push(String(inning));
+  scoringHeaderRowValues.push("Total");
+  grid.push(scoringHeaderRowValues);
 
   const firstInningCol = colLetter(1);
   const lastInningCol = colLetter(innings);
 
+  const scoringDataStart = grid.length;
   const awayOutsRow: SheetCell[] = ["Away — Outs"];
   for (let i = 0; i < innings; i++) awayOutsRow.push(BLANK);
   awayOutsRow.push(BLANK);
@@ -141,6 +180,23 @@ export function buildGameSheetGrid(input: GameSheetInput): SheetGrid {
   for (let i = 0; i < innings; i++) homeOutsRow.push(BLANK);
   homeOutsRow.push(BLANK);
   grid.push(homeOutsRow);
+  const scoringDataEnd = grid.length - 1;
 
-  return grid;
+  return {
+    grid,
+    sections: {
+      fieldingHeaderRow,
+      fieldingPositionRows: [fieldingPositionStart, fieldingPositionEnd],
+      fieldingColumnCount: innings + 1,
+      benchRows,
+      battingTitleRow,
+      battingHeaderRow,
+      battingDataRows: [battingDataStart, battingDataEnd],
+      battingColumnCount: 5,
+      scoringTitleRow,
+      scoringHeaderRow,
+      scoringDataRows: [scoringDataStart, scoringDataEnd],
+      scoringColumnCount: innings + 2,
+    },
+  };
 }
