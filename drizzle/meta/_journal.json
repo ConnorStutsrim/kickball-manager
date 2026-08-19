@@ -22,6 +22,13 @@
       "when": 1787144396979,
       "tag": "0002_position_aptitude_model",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787160545594,
+      "tag": "0003_colossal_sasquatch",
+      "breakpoints": true
     }
   ]
 }

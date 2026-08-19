@@ -8,6 +8,7 @@ import {
   date,
   jsonb,
   smallint,
+  unique,
 } from "drizzle-orm/pg-core";
 
 export const genderEnum = ["M", "F"] as const;
@@ -133,6 +134,20 @@ export const fieldingAssignments = pgTable("fielding_assignments", {
     .references(() => players.id, { onDelete: "cascade" }),
   position: text("position").notNull(),
 }).enableRLS();
+
+// The opponent's roster isn't tracked in detail — just their runs per half-inning.
+export const opponentInningRuns = pgTable(
+  "opponent_inning_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    gameId: uuid("game_id")
+      .notNull()
+      .references(() => games.id, { onDelete: "cascade" }),
+    inning: integer("inning").notNull(),
+    runs: integer("runs").notNull(),
+  },
+  (table) => [unique().on(table.gameId, table.inning)],
+).enableRLS();
 
 export const plateAppearances = pgTable("plate_appearances", {
   id: uuid("id").primaryKey().defaultRandom(),
