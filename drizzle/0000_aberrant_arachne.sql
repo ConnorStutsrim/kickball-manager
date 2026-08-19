@@ -7,6 +7,7 @@ CREATE TABLE "baserunning_events" (
 	"notes" text
 );
 --> statement-breakpoint
+ALTER TABLE "baserunning_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "batting_order_entries" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"lineup_id" uuid NOT NULL,
@@ -14,6 +15,7 @@ CREATE TABLE "batting_order_entries" (
 	"batting_position" integer NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "batting_order_entries" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "defensive_notes" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"game_id" uuid NOT NULL,
@@ -24,6 +26,7 @@ CREATE TABLE "defensive_notes" (
 	"tag" text
 );
 --> statement-breakpoint
+ALTER TABLE "defensive_notes" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "fielding_assignments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"lineup_id" uuid NOT NULL,
@@ -32,6 +35,7 @@ CREATE TABLE "fielding_assignments" (
 	"position" text NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "fielding_assignments" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "games" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"season_id" uuid NOT NULL,
@@ -43,6 +47,7 @@ CREATE TABLE "games" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "games" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "league_rules" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"positions" jsonb NOT NULL,
@@ -52,12 +57,14 @@ CREATE TABLE "league_rules" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "league_rules" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "lineups" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"game_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "lineups" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "plate_appearances" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"game_id" uuid NOT NULL,
@@ -70,6 +77,7 @@ CREATE TABLE "plate_appearances" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "plate_appearances" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "players" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
@@ -83,12 +91,14 @@ CREATE TABLE "players" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "players" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "seasons" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"year" integer NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "seasons" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE "baserunning_events" ADD CONSTRAINT "baserunning_events_game_id_games_id_fk" FOREIGN KEY ("game_id") REFERENCES "public"."games"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "baserunning_events" ADD CONSTRAINT "baserunning_events_player_id_players_id_fk" FOREIGN KEY ("player_id") REFERENCES "public"."players"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "batting_order_entries" ADD CONSTRAINT "batting_order_entries_lineup_id_lineups_id_fk" FOREIGN KEY ("lineup_id") REFERENCES "public"."lineups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

@@ -50,7 +50,7 @@ export const players = pgTable("players", {
   ratingPlateDiscipline: smallint("rating_plate_discipline"),
   ratingFielding: smallint("rating_fielding"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 // Single-row config table: fielding positions, gender position-limit rules, etc.
 export const leagueRules = pgTable("league_rules", {
@@ -62,13 +62,13 @@ export const leagueRules = pgTable("league_rules", {
   inningsPerGame: integer("innings_per_game").notNull().default(7),
   rosterSize: integer("roster_size"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const seasons = pgTable("seasons", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   year: integer("year").notNull(),
-});
+}).enableRLS();
 
 export const games = pgTable("games", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -81,7 +81,7 @@ export const games = pgTable("games", {
   inningsPlanned: integer("innings_planned").notNull().default(7),
   sheetUrl: text("sheet_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const lineups = pgTable("lineups", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -89,7 +89,7 @@ export const lineups = pgTable("lineups", {
     .notNull()
     .references(() => games.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const battingOrderEntries = pgTable("batting_order_entries", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -100,7 +100,7 @@ export const battingOrderEntries = pgTable("batting_order_entries", {
     .notNull()
     .references(() => players.id, { onDelete: "cascade" }),
   battingPosition: integer("batting_position").notNull(),
-});
+}).enableRLS();
 
 // position value "BENCH" represents a player not fielding that inning.
 export const fieldingAssignments = pgTable("fielding_assignments", {
@@ -113,7 +113,7 @@ export const fieldingAssignments = pgTable("fielding_assignments", {
     .notNull()
     .references(() => players.id, { onDelete: "cascade" }),
   position: text("position").notNull(),
-});
+}).enableRLS();
 
 export const plateAppearances = pgTable("plate_appearances", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -129,7 +129,7 @@ export const plateAppearances = pgTable("plate_appearances", {
   rbi: integer("rbi").notNull().default(0),
   runsScored: boolean("runs_scored").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}).enableRLS();
 
 export const baserunningEvents = pgTable("baserunning_events", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -142,7 +142,7 @@ export const baserunningEvents = pgTable("baserunning_events", {
   inning: integer("inning").notNull(),
   eventType: text("event_type", { enum: baserunningEventTypeEnum }).notNull(),
   notes: text("notes"),
-});
+}).enableRLS();
 
 export const defensiveNotes = pgTable("defensive_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -156,4 +156,4 @@ export const defensiveNotes = pgTable("defensive_notes", {
   position: text("position").notNull(),
   note: text("note").notNull(),
   tag: text("tag", { enum: defensiveNoteTagEnum }),
-});
+}).enableRLS();

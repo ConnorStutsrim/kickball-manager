@@ -37,8 +37,11 @@ yarn-error.log*
 # vercel
 .vercel
 
-# local Claude Code settings
+# local Claude Code / agent tooling settings
 /.claude/
+/.agents/
+/.mcp.json
+/skills-lock.json
 
 # typescript
 *.tsbuildinfo
