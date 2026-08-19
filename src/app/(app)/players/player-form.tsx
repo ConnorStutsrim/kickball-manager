@@ -14,12 +14,17 @@ import {
 } from "@/components/ui/select";
 import type { Player } from "@/lib/data/players";
 
-const RATING_FIELDS = [
+const BATTING_RATING_FIELDS = [
   { name: "ratingContact", label: "Contact" },
   { name: "ratingPower", label: "Power" },
   { name: "ratingSpeed", label: "Speed" },
   { name: "ratingPlateDiscipline", label: "Plate discipline" },
-  { name: "ratingFielding", label: "Fielding" },
+] as const;
+
+const FIELDING_RATING_FIELDS = [
+  { name: "ratingCatching", label: "Catching" },
+  { name: "ratingThrowing", label: "Throwing" },
+  { name: "ratingGameSense", label: "Game sense" },
 ] as const;
 
 const initialState: PlayerFormState = {};
@@ -55,11 +60,31 @@ export function PlayerForm({
         </Select>
       </div>
 
-      <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <legend className="col-span-full text-sm font-medium text-muted-foreground">
-          Baseline ratings (1-5, optional)
+          Batting ratings (1-5, optional)
         </legend>
-        {RATING_FIELDS.map((field) => (
+        {BATTING_RATING_FIELDS.map((field) => (
+          <div key={field.name} className="flex flex-col gap-2">
+            <Label htmlFor={field.name}>{field.label}</Label>
+            <Input
+              id={field.name}
+              name={field.name}
+              type="number"
+              min={1}
+              max={5}
+              defaultValue={player?.[field.name] ?? undefined}
+            />
+          </div>
+        ))}
+      </fieldset>
+
+      <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <legend className="col-span-full text-sm font-medium text-muted-foreground">
+          Fielding ratings (1-5, optional) — Speed above is reused for
+          fielding range too
+        </legend>
+        {FIELDING_RATING_FIELDS.map((field) => (
           <div key={field.name} className="flex flex-col gap-2">
             <Label htmlFor={field.name}>{field.label}</Label>
             <Input

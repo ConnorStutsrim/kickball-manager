@@ -46,21 +46,40 @@ export const players = pgTable("players", {
   // prior before enough real plate appearances exist to derive stats from.
   ratingContact: smallint("rating_contact"),
   ratingPower: smallint("rating_power"),
+  // Speed doubles as a fielding-range signal in the position-aptitude model.
   ratingSpeed: smallint("rating_speed"),
   ratingPlateDiscipline: smallint("rating_plate_discipline"),
-  ratingFielding: smallint("rating_fielding"),
+  // Fielding skill axes (predict position aptitude via positions.weight_*).
+  ratingCatching: smallint("rating_catching"),
+  ratingThrowing: smallint("rating_throwing"),
+  ratingGameSense: smallint("rating_game_sense"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
-// Single-row config table: fielding positions, gender position-limit rules, etc.
+// One row per fielding position: how much each skill axis predicts success
+// there (weight_*), and the position's relative importance. Both drive the
+// fielding solver's optimal (Hungarian-algorithm) position assignment.
+export const positions = pgTable("positions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  shortCode: text("short_code").notNull(),
+  displayOrder: integer("display_order").notNull(),
+  importance: smallint("importance").notNull(),
+  weightSpeed: smallint("weight_speed").notNull(),
+  weightCatching: smallint("weight_catching").notNull(),
+  weightThrowing: smallint("weight_throwing").notNull(),
+  weightGameSense: smallint("weight_game_sense").notNull(),
+}).enableRLS();
+
+// Single-row config table: gender minimums, innings per game, etc.
 export const leagueRules = pgTable("league_rules", {
   id: uuid("id").primaryKey().defaultRandom(),
-  positions: jsonb("positions").notNull().$type<string[]>(),
-  genderPositionLimits: jsonb("gender_position_limits").notNull().$type<
-    Record<string, { gender: Gender; max: number }[]>
+  // Whole-field floor per gender among that inning's fielders, e.g.
+  // [{ gender: "M", min: 4 }, { gender: "F", min: 4 }].
+  genderMinimums: jsonb("gender_minimums").notNull().$type<
+    { gender: Gender; min: number }[]
   >(),
   inningsPerGame: integer("innings_per_game").notNull().default(7),
-  rosterSize: integer("roster_size"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 

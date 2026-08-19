@@ -20,7 +20,9 @@ const playerSchema = z.object({
   ratingPower: ratingSchema,
   ratingSpeed: ratingSchema,
   ratingPlateDiscipline: ratingSchema,
-  ratingFielding: ratingSchema,
+  ratingCatching: ratingSchema,
+  ratingThrowing: ratingSchema,
+  ratingGameSense: ratingSchema,
 });
 
 export type PlayerFormState = { error?: string };
@@ -33,7 +35,9 @@ function parsePlayerForm(formData: FormData) {
     ratingPower: formData.get("ratingPower"),
     ratingSpeed: formData.get("ratingSpeed"),
     ratingPlateDiscipline: formData.get("ratingPlateDiscipline"),
-    ratingFielding: formData.get("ratingFielding"),
+    ratingCatching: formData.get("ratingCatching"),
+    ratingThrowing: formData.get("ratingThrowing"),
+    ratingGameSense: formData.get("ratingGameSense"),
   });
 }
 

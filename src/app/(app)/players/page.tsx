@@ -16,7 +16,9 @@ const RATING_COLUMNS = [
   { key: "ratingPower", label: "Pow" },
   { key: "ratingSpeed", label: "Spd" },
   { key: "ratingPlateDiscipline", label: "Dis" },
-  { key: "ratingFielding", label: "Fld" },
+  { key: "ratingCatching", label: "Cat" },
+  { key: "ratingThrowing", label: "Thr" },
+  { key: "ratingGameSense", label: "Sns" },
 ] as const;
 
 export default async function PlayersPage() {

@@ -5,6 +5,9 @@ import { signOut } from "./actions";
 const NAV_LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/players", label: "Roster" },
+  { href: "/games", label: "Games" },
+  { href: "/settings/league-rules", label: "League rules" },
+  { href: "/settings/positions", label: "Positions" },
 ];
 
 // Authenticated pages show per-user, frequently-mutated data (roster, lineups,
@@ -15,7 +18,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="border-b">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <nav className="flex items-center gap-4">
             <Link href="/" className="font-semibold">
               Kickball Manager
@@ -37,7 +40,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
           </form>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
         {children}
       </main>
     </div>
