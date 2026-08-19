@@ -59,16 +59,40 @@ gives that spreadsheet a real data model behind it.
 
 ## Architecture
 
-```
-┌────────────────────┐      ┌──────────────────────┐
-│  Next.js app        │      │  Supabase             │
-│  (Vercel)            │◄────►│  Postgres + Auth      │
-│                      │      └──────────────────────┘
-│  - Roster/lineup UI  │
-│  - Lineup engine     │      ┌──────────────────────┐
-│  - Stat tracking UI  │◄────►│  Google Sheets API     │
-└────────────────────┘      │  (per-game export)     │
-                              └──────────────────────┘
+```mermaid
+flowchart LR
+    Browser["Browser<br/>(single allow-listed user)"]
+
+    subgraph App["Next.js App (Vercel)"]
+        direction TB
+        Proxy["Auth proxy<br/>src/proxy.ts"]
+        UI["Roster / Games / Live Tracking / Settings UI"]
+        Engine["Lineup engine<br/>fielding solver + Hungarian assignment + batting order"]
+        Stats["Stats blending<br/>src/lib/stats"]
+    end
+
+    subgraph SB["Supabase"]
+        direction TB
+        SBAuth["Auth (magic link)"]
+        DB[("Postgres<br/>players, positions, games, lineups,<br/>plate_appearances, ...")]
+    end
+
+    subgraph GCP["Google Cloud"]
+        direction TB
+        OAuth["OAuth 2.0 consent<br/>/settings/google"]
+        Sheets["Sheets API<br/>per-game export"]
+    end
+
+    Browser -->|HTTPS| Proxy
+    Proxy -->|verify session| SBAuth
+    Proxy --> UI
+    UI --> Engine
+    Engine --> Stats
+    Stats --> DB
+    UI --> DB
+    UI -->|one-time consent| OAuth
+    OAuth -->|refresh token stored| DB
+    UI -->|generate/update sheet| Sheets
 ```
 
 The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
