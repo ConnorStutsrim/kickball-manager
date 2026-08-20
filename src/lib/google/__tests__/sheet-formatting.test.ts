@@ -102,17 +102,38 @@ describe("buildFormatRequests", () => {
     }
   });
 
-  it("gives header rows bold text and a border but no fill", () => {
+  it("gives the fielding-grid and batting-order headers a grey fill", () => {
     const { sections } = buildGameSheetGrid(baseInput());
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
-    const headerMatch = cells.find(
+
+    const fieldingHeaderMatch = cells.find(
       (c) =>
         c.range?.startRowIndex === sections.fieldingHeaderRow &&
         c.range?.endRowIndex === sections.fieldingHeaderRow + 1,
     );
-    expect(headerMatch?.cell?.userEnteredFormat?.backgroundColor).toBeUndefined();
-    expect(headerMatch?.cell?.userEnteredFormat?.textFormat?.bold).toBe(true);
-    expect(headerMatch?.cell?.userEnteredFormat?.borders).toBeDefined();
+    expect(fieldingHeaderMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(GREY);
+    expect(fieldingHeaderMatch?.cell?.userEnteredFormat?.textFormat?.bold).toBe(true);
+    expect(fieldingHeaderMatch?.cell?.userEnteredFormat?.borders).toBeDefined();
+
+    const battingHeaderMatch = cells.find(
+      (c) =>
+        c.range?.startRowIndex === sections.battingHeaderRow &&
+        c.range?.endRowIndex === sections.battingHeaderRow + 1,
+    );
+    expect(battingHeaderMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(GREY);
+  });
+
+  it("leaves the scoring header bold and bordered with no fill", () => {
+    const { sections } = buildGameSheetGrid(baseInput());
+    const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
+    const scoringHeaderMatch = cells.find(
+      (c) =>
+        c.range?.startRowIndex === sections.scoringHeaderRow &&
+        c.range?.endRowIndex === sections.scoringHeaderRow + 1,
+    );
+    expect(scoringHeaderMatch?.cell?.userEnteredFormat?.backgroundColor).toBeUndefined();
+    expect(scoringHeaderMatch?.cell?.userEnteredFormat?.textFormat?.bold).toBe(true);
+    expect(scoringHeaderMatch?.cell?.userEnteredFormat?.borders).toBeDefined();
   });
 
   it("leaves scoring data rows border-only, no fill or bold", () => {

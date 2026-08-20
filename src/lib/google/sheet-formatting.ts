@@ -64,9 +64,10 @@ function repeatCellRequest(
 /**
  * Builds the visual-formatting requests (fills, bold, borders, frozen
  * header/label, column widths) for a generated game sheet: bold bordered
- * headers throughout, a grey fill on the infield fielding-position rows
- * (1st/2nd/3rd/Float) and bench rows, white on the rest of the fielding
- * grid, and a grey fill on female batting-order rows (white for male).
+ * headers throughout, with a grey fill on the fielding-grid and
+ * batting-order header rows, the infield fielding-position rows
+ * (1st/2nd/3rd/Float), bench rows, and female batting-order rows — white
+ * everywhere else in those two sections.
  */
 export function buildFormatRequests(
   sheetId: number,
@@ -97,7 +98,7 @@ export function buildFormatRequests(
     repeatCellRequest(
       sheetId,
       { startRow: sections.fieldingHeaderRow, endRow: sections.fieldingHeaderRow, columnCount: sections.fieldingColumnCount },
-      headerFormat,
+      rosterFormat,
     ),
   );
   const fieldingPositionRuns = greyRuns(
@@ -130,7 +131,7 @@ export function buildFormatRequests(
     repeatCellRequest(
       sheetId,
       { startRow: sections.battingHeaderRow, endRow: sections.battingHeaderRow, columnCount: sections.battingColumnCount },
-      headerFormat,
+      rosterFormat,
     ),
   );
   const battingRowRuns = greyRuns(
