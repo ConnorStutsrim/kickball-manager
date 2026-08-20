@@ -72,12 +72,16 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
 
 /**
  * Generates a per-inning fielding rotation: who fields which position, and
- * who's on the bench. Who fields (bench rotation, gender-minimum repair)
- * aims for equal field-innings per player, as far as the roster allows.
- * Which position each fielder plays is a pure best-fit optimization —
- * an importance-weighted optimal assignment (Hungarian algorithm) over
- * each player's predicted aptitude at each position, consulting a manual
- * override first for any (player, position) pair that has one.
+ * who's on the bench. Who fields is decided fresh each inning by a greedy
+ * least-fielded-so-far rule, applied first within each gender (to satisfy
+ * that gender's minimum) and then across whoever's left (to fill the
+ * remaining "flex" spots) — this keeps field-innings as equal as possible
+ * both within each gender and across the whole roster, without needing to
+ * patch a gender-blind rotation after the fact. Which position each
+ * fielder plays is a pure best-fit optimization — an importance-weighted
+ * optimal assignment (Hungarian algorithm) over each player's predicted
+ * aptitude at each position, consulting a manual override first for any
+ * (player, position) pair that has one.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
@@ -102,7 +106,6 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     );
   }
   const usedPositions = positions.slice(0, fieldSize);
-  const benchSize = players.length - fieldSize;
 
   const seed =
     input.seed ??
@@ -130,39 +133,48 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     return true;
   });
 
+  // Tracks each player's field-innings so far, so each inning's selection
+  // can greedily favor whoever's fielded the least (their "turn").
+  const fieldInningsSoFar = new Map<string, number>();
+  for (const p of players) fieldInningsSoFar.set(p.id, 0);
+
+  // Stable seeded tiebreak for players otherwise tied on fieldInningsSoFar,
+  // so selection stays deterministic for a given seed without always
+  // favoring the same player when counts tie (e.g. every inning 1).
+  const tiebreakIndex = new Map<string, number>();
+  order.forEach((p, i) => tiebreakIndex.set(p.id, i));
+
+  function leastFielded(candidates: FieldingSolverPlayer[], count: number): FieldingSolverPlayer[] {
+    return [...candidates]
+      .sort((a, b) => {
+        const diff = fieldInningsSoFar.get(a.id)! - fieldInningsSoFar.get(b.id)!;
+        if (diff !== 0) return diff;
+        return tiebreakIndex.get(a.id)! - tiebreakIndex.get(b.id)!;
+      })
+      .slice(0, count);
+  }
+
   for (let inning = 1; inning <= innings; inning++) {
-    const benchSet = new Set<string>();
-    if (benchSize > 0) {
-      const start = ((inning - 1) * benchSize) % order.length;
-      for (let k = 0; k < benchSize; k++) {
-        benchSet.add(order[(start + k) % order.length].id);
-      }
+    // Fill each gender's minimum first, from whoever of that gender has
+    // fielded the fewest innings so far, then fill the remaining "flex"
+    // spots (not tied to any gender minimum) from whoever's fielded the
+    // fewest overall, gender-blind.
+    const fieldedIds = new Set<string>();
+    for (const gm of feasibleGenderMins) {
+      const genderPlayers = players.filter((p) => p.gender === gm.gender);
+      const take = Math.min(gm.min, genderPlayers.length, Math.max(fieldSize - fieldedIds.size, 0));
+      for (const p of leastFielded(genderPlayers, take)) fieldedIds.add(p.id);
+    }
+    const remainingSlots = fieldSize - fieldedIds.size;
+    if (remainingSlots > 0) {
+      const remainingPlayers = players.filter((p) => !fieldedIds.has(p.id));
+      for (const p of leastFielded(remainingPlayers, remainingSlots)) fieldedIds.add(p.id);
     }
 
-    let fielders = players.filter((p) => !benchSet.has(p.id));
+    const fielders = players.filter((p) => fieldedIds.has(p.id));
 
-    for (const gm of feasibleGenderMins) {
-      let countInField = fielders.filter((p) => p.gender === gm.gender).length;
-      while (countInField < gm.min) {
-        const benchCandidate = players.find(
-          (p) => benchSet.has(p.id) && p.gender === gm.gender,
-        );
-        if (!benchCandidate) break;
-
-        const swapOut = fielders.find((p) => {
-          if (p.gender === gm.gender) return false;
-          const otherGm = feasibleGenderMins.find((g) => g.gender === p.gender);
-          if (!otherGm) return true;
-          const currentCount = fielders.filter((f) => f.gender === p.gender).length;
-          return currentCount - 1 >= otherGm.min;
-        });
-        if (!swapOut) break;
-
-        benchSet.delete(benchCandidate.id);
-        benchSet.add(swapOut.id);
-        fielders = players.filter((p) => !benchSet.has(p.id));
-        countInField = fielders.filter((p) => p.gender === gm.gender).length;
-      }
+    for (const p of fielders) {
+      fieldInningsSoFar.set(p.id, fieldInningsSoFar.get(p.id)! + 1);
     }
 
     if (usedPositions.length > 0) {

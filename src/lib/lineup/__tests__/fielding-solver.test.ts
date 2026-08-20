@@ -97,6 +97,38 @@ describe("solveFielding", () => {
     }
   });
 
+  it("keeps bench innings within 1 of each other *within each gender* even when repair kicks in often", () => {
+    // Only 5 men against a minimum of 4 in the field every inning means the
+    // base rotation frequently benches too many men, forcing repair swaps
+    // most innings. Repair should favor whoever's fielded the least/most so
+    // far within the affected gender, not the same first-match player every
+    // time. (Bench time can't be equal *across* genders here — 5 men who
+    // must almost always field vs. 9 women who have more slack is an
+    // inherent asymmetry from the gender minimum itself, not something the
+    // repair step controls — so fairness is checked within each gender.)
+    const players = makeRoster(5, 9); // 14 players, bench of 3
+    const { assignments } = solveFielding({
+      players,
+      positions: POSITIONS,
+      innings: 7,
+      genderMinimums: STANDARD_MINIMUMS,
+      seed: 7,
+    });
+
+    const benchCounts = new Map<string, number>();
+    for (const p of players) benchCounts.set(p.id, 0);
+    for (const a of assignments) {
+      if (a.position === BENCH) {
+        benchCounts.set(a.playerId, (benchCounts.get(a.playerId) ?? 0) + 1);
+      }
+    }
+
+    const menCounts = players.filter((p) => p.gender === "M").map((p) => benchCounts.get(p.id)!);
+    const womenCounts = players.filter((p) => p.gender === "F").map((p) => benchCounts.get(p.id)!);
+    expect(Math.max(...menCounts) - Math.min(...menCounts)).toBeLessThanOrEqual(1);
+    expect(Math.max(...womenCounts) - Math.min(...womenCounts)).toBeLessThanOrEqual(1);
+  });
+
   it("assigns every position exactly once per inning with no duplicates", () => {
     const players = makeRoster(6, 5); // exactly 11 players, no bench
     const { assignments } = solveFielding({
