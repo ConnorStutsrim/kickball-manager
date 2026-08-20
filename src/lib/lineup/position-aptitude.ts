@@ -26,11 +26,19 @@ function rating(value: number | null): number {
  * (the position's profile). A position with no weights configured yet
  * (all zero) has no basis for a prediction, so it falls back to neutral
  * rather than dividing by zero.
+ *
+ * `override`, when set, is a manually pinned rating for this exact
+ * (player, position) pair that wins outright — even over the
+ * no-weights-configured neutral fallback — bypassing the computed formula
+ * entirely.
  */
 export function positionAptitude(
   player: PlayerSkills,
   profile: PositionProfile,
+  override?: number | null,
 ): number {
+  if (override != null) return override;
+
   const totalWeight =
     profile.weightSpeed +
     profile.weightCatching +

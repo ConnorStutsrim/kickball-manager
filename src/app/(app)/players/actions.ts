@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { players, genderEnum } from "@/db/schema";
+import { players, playerPositionOverrides, genderEnum } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
 const ratingSchema = z
@@ -86,4 +86,53 @@ export async function deletePlayer(playerId: string) {
   await requireUser();
   await db.delete(players).where(eq(players.id, playerId));
   revalidatePath("/players");
+}
+
+export type PositionOverridesFormState = { error?: string };
+
+export async function updatePlayerPositionOverrides(
+  playerId: string,
+  _prevState: PositionOverridesFormState,
+  formData: FormData,
+): Promise<PositionOverridesFormState> {
+  await requireUser();
+
+  const allPositions = await db.query.positions.findMany();
+
+  const rows = allPositions.map((position) => ({
+    positionId: position.id,
+    parsed: ratingSchema.safeParse(formData.get(`rating-${position.id}`)),
+  }));
+
+  const failed = rows.find((r) => !r.parsed.success);
+  if (failed && !failed.parsed.success) {
+    return { error: failed.parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  await db.transaction(async (tx) => {
+    for (const { positionId, parsed } of rows) {
+      if (!parsed.success) continue;
+      if (parsed.data === undefined) {
+        await tx
+          .delete(playerPositionOverrides)
+          .where(
+            and(
+              eq(playerPositionOverrides.playerId, playerId),
+              eq(playerPositionOverrides.positionId, positionId),
+            ),
+          );
+      } else {
+        await tx
+          .insert(playerPositionOverrides)
+          .values({ playerId, positionId, rating: parsed.data })
+          .onConflictDoUpdate({
+            target: [playerPositionOverrides.playerId, playerPositionOverrides.positionId],
+            set: { rating: parsed.data },
+          });
+      }
+    }
+  });
+
+  revalidatePath(`/players/${playerId}/edit`);
+  return {};
 }

@@ -203,4 +203,84 @@ describe("solveFielding", () => {
       if (a.playerId === "rookie") expect(a.position).toBe("P");
     }
   });
+
+  it("honors a position override over computed aptitude", () => {
+    // Both players and both positions are fully symmetric on paper (same
+    // ratings, same weights) — without an override, nothing distinguishes
+    // who plays where. An override on one (player, position) pair should
+    // still deterministically flip the optimal assignment to honor it, and
+    // the other player falls back to computed aptitude for their slot.
+    const positions: PositionProfile[] = [
+      makePosition("P", { weightThrowing: 1, weightSpeed: 0, weightCatching: 0, weightGameSense: 0 }),
+      makePosition("C", { weightCatching: 1, weightSpeed: 0, weightThrowing: 0, weightGameSense: 0 }),
+    ];
+    const ace: FieldingSolverPlayer = {
+      id: "ace",
+      gender: "M",
+      speed: null,
+      catching: 3,
+      throwing: 3,
+      gameSense: null,
+    };
+    const rookie: FieldingSolverPlayer = {
+      id: "rookie",
+      gender: "F",
+      speed: null,
+      catching: 3,
+      throwing: 3,
+      gameSense: null,
+    };
+
+    const { assignments } = solveFielding({
+      players: [ace, rookie],
+      positions,
+      innings: 3,
+      genderMinimums: [],
+      seed: 1,
+      overrides: [{ playerId: "ace", positionName: "P", rating: 5 }],
+    });
+
+    for (const a of assignments) {
+      if (a.playerId === "ace") expect(a.position).toBe("P");
+      if (a.playerId === "rookie") expect(a.position).toBe("C");
+    }
+  });
+
+  it("ignores an override for a player/position pair that isn't in play", () => {
+    const positions: PositionProfile[] = [
+      makePosition("P", { weightThrowing: 1, weightSpeed: 0, weightCatching: 0, weightGameSense: 0 }),
+      makePosition("C", { weightCatching: 1, weightSpeed: 0, weightThrowing: 0, weightGameSense: 0 }),
+    ];
+    const ace: FieldingSolverPlayer = {
+      id: "ace",
+      gender: "M",
+      speed: null,
+      catching: 5,
+      throwing: 1,
+      gameSense: null,
+    };
+    const rookie: FieldingSolverPlayer = {
+      id: "rookie",
+      gender: "F",
+      speed: null,
+      catching: 1,
+      throwing: 5,
+      gameSense: null,
+    };
+
+    const { assignments } = solveFielding({
+      players: [ace, rookie],
+      positions,
+      innings: 3,
+      genderMinimums: [],
+      seed: 1,
+      overrides: [{ playerId: "someone-else", positionName: "P", rating: 5 }],
+    });
+
+    // Same outcome as the no-override "clearly-best-fit" test above.
+    for (const a of assignments) {
+      if (a.playerId === "ace") expect(a.position).toBe("C");
+      if (a.playerId === "rookie") expect(a.position).toBe("P");
+    }
+  });
 });

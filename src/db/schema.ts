@@ -76,6 +76,26 @@ export const positions = pgTable("positions", {
   weightGameSense: smallint("weight_game_sense").notNull(),
 }).enableRLS();
 
+// Optional pinned rating for a specific (player, position) pair, consulted
+// before positionAptitude()'s computed weighted average — e.g. "Jordan is a
+// 5 at Pitcher regardless of their raw skill axes." Not every player needs
+// an override for every position, hence a sparse join table rather than a
+// wide column on `players`.
+export const playerPositionOverrides = pgTable(
+  "player_position_overrides",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    positionId: uuid("position_id")
+      .notNull()
+      .references(() => positions.id, { onDelete: "cascade" }),
+    rating: smallint("rating").notNull(),
+  },
+  (table) => [unique().on(table.playerId, table.positionId)],
+).enableRLS();
+
 // One row per batting-order-slot archetype (Leadoff, Table Setter, Balanced,
 // Cleanup, RBI): how much each batting skill axis predicts fit for that
 // archetype. Slot number -> archetype name is a fixed mapping in code

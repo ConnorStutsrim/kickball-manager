@@ -19,6 +19,7 @@ import {
   getSeasonBaserunningEvents,
   getSeasonPlateAppearances,
 } from "@/lib/data/season-batting-stats";
+import { getAllPlayerPositionOverrides } from "@/lib/data/position-overrides";
 
 export type GenerateLineupState = { error?: string; warnings?: string[] };
 
@@ -34,12 +35,13 @@ export async function generateLineup(
     return { error: "Select at least one player who is present." };
   }
 
-  const [game, rules, positionProfiles, archetypes, allPlayers] = await Promise.all([
+  const [game, rules, positionProfiles, archetypes, allPlayers, overrideRows] = await Promise.all([
     db.query.games.findFirst({ where: eq(games.id, gameId) }),
     db.query.leagueRules.findFirst(),
     db.query.positions.findMany({ orderBy: [asc(positions.displayOrder)] }),
     db.query.battingSlotArchetypes.findMany(),
     db.query.players.findMany(),
+    getAllPlayerPositionOverrides(),
   ]);
 
   if (!game) return { error: "Game not found." };
@@ -55,6 +57,13 @@ export async function generateLineup(
     return { error: "Select at least one player who is present." };
   }
 
+  const positionNameById = new Map(positionProfiles.map((p) => [p.id, p.name]));
+  const overrides = overrideRows.map((o) => ({
+    playerId: o.playerId,
+    positionName: positionNameById.get(o.positionId)!,
+    rating: o.rating,
+  }));
+
   const fieldingResult = solveFielding({
     players: roster.map((p) => ({
       id: p.id,
@@ -67,6 +76,7 @@ export async function generateLineup(
     positions: positionProfiles,
     innings: game.inningsPlanned,
     genderMinimums: rules.genderMinimums,
+    overrides,
   });
 
   // Blend each player's manual scouting ratings with real season stats

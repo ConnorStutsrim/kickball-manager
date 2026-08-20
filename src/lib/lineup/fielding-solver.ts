@@ -14,6 +14,13 @@ export interface GenderMinimum {
   min: number;
 }
 
+/** A manually pinned aptitude rating for one (player, position) pair, consulted before the computed formula. */
+export interface PositionOverride {
+  playerId: string;
+  positionName: string;
+  rating: number;
+}
+
 export interface FieldingSolverInput {
   players: FieldingSolverPlayer[];
   positions: PositionProfile[];
@@ -21,6 +28,7 @@ export interface FieldingSolverInput {
   genderMinimums: GenderMinimum[];
   /** Deterministic PRNG seed for bench rotation. Defaults to a hash of the sorted player ids. */
   seed?: number;
+  overrides?: PositionOverride[];
 }
 
 export interface FieldingAssignment {
@@ -68,12 +76,18 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * aims for equal field-innings per player, as far as the roster allows.
  * Which position each fielder plays is a pure best-fit optimization —
  * an importance-weighted optimal assignment (Hungarian algorithm) over
- * each player's predicted aptitude at each position.
+ * each player's predicted aptitude at each position, consulting a manual
+ * override first for any (player, position) pair that has one.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
   const warnings: string[] = [];
   const assignments: FieldingAssignment[] = [];
+
+  const overrideMap = new Map<string, number>();
+  for (const o of input.overrides ?? []) {
+    overrideMap.set(`${o.playerId}::${o.positionName}`, o.rating);
+  }
 
   if (players.length === 0 || innings <= 0 || positions.length === 0) {
     return { assignments, warnings };
@@ -153,9 +167,10 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
 
     if (usedPositions.length > 0) {
       const costMatrix = fielders.map((player) =>
-        usedPositions.map(
-          (position) => -(position.importance * positionAptitude(player, position)),
-        ),
+        usedPositions.map((position) => {
+          const override = overrideMap.get(`${player.id}::${position.name}`);
+          return -(position.importance * positionAptitude(player, position, override));
+        }),
       );
       const assignment = solveAssignment(costMatrix);
       assignment.forEach((positionIndex, fielderIndex) => {

@@ -48,4 +48,23 @@ describe("positionAptitude", () => {
     const unconfigured = profile(); // all weights 0
     expect(positionAptitude(player, unconfigured)).toBe(3);
   });
+
+  it("uses the override rating directly instead of computing", () => {
+    const player = skills({ catching: 1 });
+    const catchingOnly = profile({ weightCatching: 1 }); // would compute to 1
+    expect(positionAptitude(player, catchingOnly, 5)).toBe(5);
+  });
+
+  it("an override wins even when the position has no weights configured", () => {
+    const player = skills({ speed: 5, catching: 5, throwing: 5, gameSense: 5 });
+    const unconfigured = profile(); // would fall back to neutral (3)
+    expect(positionAptitude(player, unconfigured, 4)).toBe(4);
+  });
+
+  it("falls back to computed aptitude when no override is given", () => {
+    const player = skills({ speed: 5, catching: 1 });
+    const catcherProfile = profile({ weightCatching: 3, weightSpeed: 1 });
+    expect(positionAptitude(player, catcherProfile, undefined)).toBe(2);
+    expect(positionAptitude(player, catcherProfile, null)).toBe(2);
+  });
 });
