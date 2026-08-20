@@ -24,10 +24,31 @@ function baseInput(): GameSheetInput {
   };
 }
 
+function fullPositionsInput(): GameSheetInput {
+  return {
+    gameHeader: "2026-08-20 vs Riverside",
+    positions: ["P", "C", "1st", "2nd", "3rd", "Float", "Outfield 1"],
+    innings: 1,
+    fielding: [],
+    battingOrder: [],
+  };
+}
+
 const SHEET_ID = 12345;
+const WHITE = { red: 1, green: 1, blue: 1 };
+const GREY = { red: 0.851, green: 0.851, blue: 0.851 };
 
 function repeatCellRequests(requests: ReturnType<typeof buildFormatRequests>) {
   return requests.filter((r) => "repeatCell" in r).map((r) => r.repeatCell!);
+}
+
+function formatAtRow(cells: ReturnType<typeof repeatCellRequests>, rowIndex: number) {
+  const match = cells.find((c) => {
+    const start = c.range?.startRowIndex;
+    const end = c.range?.endRowIndex;
+    return start != null && end != null && start <= rowIndex && rowIndex < end;
+  });
+  return match?.cell?.userEnteredFormat;
 }
 
 describe("buildFormatRequests", () => {
@@ -43,53 +64,42 @@ describe("buildFormatRequests", () => {
     }
   });
 
-  it("gives the fielding position rows a white fill", () => {
-    const { sections } = buildGameSheetGrid(baseInput());
+  it("greys the infield fielding positions (1st/2nd/3rd/Float) and leaves the rest white", () => {
+    const { sections } = buildGameSheetGrid(fullPositionsInput());
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
-    const [start, end] = sections.fieldingPositionRows;
-    const match = cells.find(
-      (c) => c.range?.startRowIndex === start && c.range?.endRowIndex === end + 1,
-    );
-    expect(match?.cell?.userEnteredFormat?.backgroundColor).toEqual({
-      red: 1,
-      green: 1,
-      blue: 1,
-    });
-    expect(match?.cell?.userEnteredFormat?.textFormat?.bold).toBe(true);
+
+    for (const name of ["P", "C", "Outfield 1"]) {
+      const row = sections.fieldingPositionRowByName[name];
+      expect(formatAtRow(cells, row)?.backgroundColor).toEqual(WHITE);
+    }
+    for (const name of ["1st", "2nd", "3rd", "Float"]) {
+      const row = sections.fieldingPositionRowByName[name];
+      expect(formatAtRow(cells, row)?.backgroundColor).toEqual(GREY);
+    }
   });
 
-  it("gives bench rows and batting-order data rows a grey fill", () => {
+  it("gives bench rows a grey fill", () => {
     const { sections } = buildGameSheetGrid(baseInput());
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
-    const grey = { red: 0.851, green: 0.851, blue: 0.851 };
-
     const [benchStart, benchEnd] = sections.benchRows!;
     const benchMatch = cells.find(
       (c) => c.range?.startRowIndex === benchStart && c.range?.endRowIndex === benchEnd + 1,
     );
-    expect(benchMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(grey);
-
-    const [battingStart, battingEnd] = sections.battingDataRows;
-    const battingMatch = cells.find(
-      (c) => c.range?.startRowIndex === battingStart && c.range?.endRowIndex === battingEnd + 1,
-    );
-    expect(battingMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(grey);
+    expect(benchMatch?.cell?.userEnteredFormat?.backgroundColor).toEqual(GREY);
   });
 
-  it("skips a bench-fill request when there is no bench that game", () => {
-    const noBenchInput: GameSheetInput = {
-      ...baseInput(),
-      fielding: baseInput().fielding.filter((f) => f.position !== BENCH),
-    };
-    const { sections } = buildGameSheetGrid(noBenchInput);
-    expect(sections.benchRows).toBeNull();
+  it("greys female batting-order rows and leaves male rows white", () => {
+    const { sections } = buildGameSheetGrid(baseInput());
     const cells = repeatCellRequests(buildFormatRequests(SHEET_ID, sections));
-    const grey = { red: 0.851, green: 0.851, blue: 0.851 };
-    const greyFills = cells.filter(
-      (c) => JSON.stringify(c.cell?.userEnteredFormat?.backgroundColor) === JSON.stringify(grey),
-    );
-    // Only the batting-order rows should be grey, not a bench section.
-    expect(greyFills).toHaveLength(1);
+    for (const [rowIndex, gender] of Object.entries(sections.battingRowGenders)) {
+      const format = formatAtRow(cells, Number(rowIndex));
+      if (gender === "F") {
+        expect(format?.backgroundColor).toEqual(GREY);
+      } else {
+        expect(format?.backgroundColor).toBeUndefined();
+      }
+      expect(format?.textFormat?.bold).toBe(true);
+    }
   });
 
   it("gives header rows bold text and a border but no fill", () => {

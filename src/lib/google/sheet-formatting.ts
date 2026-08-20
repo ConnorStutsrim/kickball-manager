@@ -1,13 +1,15 @@
 import type { sheets_v4 } from "googleapis";
 import type { GameSheetSections } from "./sheet-layout";
 
-// Greyscale scheme: white for the fielding grid (the "who's playing right
-// now" data), grey for anything that's a reference/roster listing rather
-// than a live inning assignment (bench rows and the batting order table) —
-// makes it easy to track at a glance during a game. Deliberately departs
-// from the real spreadsheet's teal/pink palette per Connor's preference.
+// Greyscale scheme, deliberately departing from the real spreadsheet's
+// teal/pink palette per Connor's preference: grey highlights the infield
+// (1st/2nd/3rd/Float) among the fielding positions and female players in
+// the batting order, white everywhere else, to make both easy to track at
+// a glance during a game.
 const WHITE_FILL: sheets_v4.Schema$Color = { red: 1, green: 1, blue: 1 };
 const GREY_FILL: sheets_v4.Schema$Color = { red: 0.851, green: 0.851, blue: 0.851 };
+const GREY_FIELDING_POSITIONS = new Set(["1st", "2nd", "3rd", "Float"]);
+const GREY_BATTING_GENDER = "F";
 const THIN_BORDER_STYLE = "SOLID";
 
 const thinBorder: sheets_v4.Schema$Border = { style: THIN_BORDER_STYLE };
@@ -19,6 +21,25 @@ const allSidesThin: sheets_v4.Schema$Borders = {
 };
 
 const CELL_FORMAT_FIELDS = "userEnteredFormat(backgroundColor,textFormat.bold,borders)";
+
+/**
+ * Collapses a set of (row, isGrey) pairs into contiguous same-color runs,
+ * so adjacent rows sharing a format become one repeatCell request instead
+ * of one per row.
+ */
+function greyRuns(rows: { rowIndex: number; grey: boolean }[]): { start: number; end: number; grey: boolean }[] {
+  const sorted = [...rows].sort((a, b) => a.rowIndex - b.rowIndex);
+  const runs: { start: number; end: number; grey: boolean }[] = [];
+  for (const { rowIndex, grey } of sorted) {
+    const last = runs[runs.length - 1];
+    if (last && last.grey === grey && last.end + 1 === rowIndex) {
+      last.end = rowIndex;
+    } else {
+      runs.push({ start: rowIndex, end: rowIndex, grey });
+    }
+  }
+  return runs;
+}
 
 function repeatCellRequest(
   sheetId: number,
@@ -43,9 +64,9 @@ function repeatCellRequest(
 /**
  * Builds the visual-formatting requests (fills, bold, borders, frozen
  * header/label, column widths) for a generated game sheet: bold bordered
- * headers, white fill for live fielding-grid assignments, and a grey fill
- * for reference/roster cells (bench rows, batting order rows) so the two
- * are easy to tell apart at a glance during a game.
+ * headers throughout, a grey fill on the infield fielding-position rows
+ * (1st/2nd/3rd/Float) and bench rows, white on the rest of the fielding
+ * grid, and a grey fill on female batting-order rows (white for male).
  */
 export function buildFormatRequests(
   sheetId: number,
@@ -78,12 +99,22 @@ export function buildFormatRequests(
       { startRow: sections.fieldingHeaderRow, endRow: sections.fieldingHeaderRow, columnCount: sections.fieldingColumnCount },
       headerFormat,
     ),
-    repeatCellRequest(
-      sheetId,
-      { startRow: sections.fieldingPositionRows[0], endRow: sections.fieldingPositionRows[1], columnCount: sections.fieldingColumnCount },
-      fieldingFormat,
-    ),
   );
+  const fieldingPositionRuns = greyRuns(
+    Object.entries(sections.fieldingPositionRowByName).map(([name, rowIndex]) => ({
+      rowIndex,
+      grey: GREY_FIELDING_POSITIONS.has(name),
+    })),
+  );
+  for (const run of fieldingPositionRuns) {
+    requests.push(
+      repeatCellRequest(
+        sheetId,
+        { startRow: run.start, endRow: run.end, columnCount: sections.fieldingColumnCount },
+        run.grey ? rosterFormat : fieldingFormat,
+      ),
+    );
+  }
   if (sections.benchRows) {
     requests.push(
       repeatCellRequest(
@@ -102,12 +133,18 @@ export function buildFormatRequests(
       headerFormat,
     ),
   );
-  if (sections.battingDataRows[1] >= sections.battingDataRows[0]) {
+  const battingRowRuns = greyRuns(
+    Object.entries(sections.battingRowGenders).map(([rowIndex, gender]) => ({
+      rowIndex: Number(rowIndex),
+      grey: gender === GREY_BATTING_GENDER,
+    })),
+  );
+  for (const run of battingRowRuns) {
     requests.push(
       repeatCellRequest(
         sheetId,
-        { startRow: sections.battingDataRows[0], endRow: sections.battingDataRows[1], columnCount: sections.battingColumnCount },
-        rosterFormat,
+        { startRow: run.start, endRow: run.end, columnCount: sections.battingColumnCount },
+        run.grey ? rosterFormat : headerFormat,
       ),
     );
   }

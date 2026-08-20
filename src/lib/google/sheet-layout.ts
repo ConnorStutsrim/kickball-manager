@@ -29,11 +29,13 @@ export interface GameSheetInput {
 export interface GameSheetSections {
   fieldingHeaderRow: number;
   fieldingPositionRows: [start: number, end: number];
+  fieldingPositionRowByName: Record<string, number>; // position name -> absolute row index
   fieldingColumnCount: number; // label column + one per inning (incl. the spare tie-breaker inning)
   benchRows: [start: number, end: number] | null;
   battingTitleRow: number;
   battingHeaderRow: number;
   battingDataRows: [start: number, end: number];
+  battingRowGenders: Record<number, string>; // absolute row index -> that row's player's gender
   battingColumnCount: number;
   scoringTitleRow: number;
   scoringHeaderRow: number;
@@ -105,7 +107,9 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   }
 
   const fieldingPositionStart = grid.length;
+  const fieldingPositionRowByName: Record<string, number> = {};
   for (const position of positions) {
+    fieldingPositionRowByName[position] = grid.length;
     const row: SheetCell[] = [position];
     for (let inning = 1; inning <= sheetInnings; inning++) {
       row.push(fieldingByPositionAndInning.get(`${position}:${inning}`) ?? BLANK);
@@ -142,7 +146,9 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
   const battingHeaderRow = grid.length;
   grid.push(["Order", "Name", "Gender", "Innings Fielded", "Ups"]);
   const battingDataStart = grid.length;
+  const battingRowGenders: Record<number, string> = {};
   for (const entry of battingOrder) {
+    battingRowGenders[grid.length] = entry.gender;
     grid.push([entry.battingPosition, entry.playerName, entry.gender, entry.inningsFielded, BLANK]);
   }
   const battingDataEnd = grid.length - 1;
@@ -193,11 +199,13 @@ export function buildGameSheetGrid(input: GameSheetInput): GameSheetBuild {
     sections: {
       fieldingHeaderRow,
       fieldingPositionRows: [fieldingPositionStart, fieldingPositionEnd],
+      fieldingPositionRowByName,
       fieldingColumnCount: sheetInnings + 1,
       benchRows,
       battingTitleRow,
       battingHeaderRow,
       battingDataRows: [battingDataStart, battingDataEnd],
+      battingRowGenders,
       battingColumnCount: 5,
       scoringTitleRow,
       scoringHeaderRow,
