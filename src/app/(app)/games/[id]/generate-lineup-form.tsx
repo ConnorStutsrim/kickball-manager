@@ -1,12 +1,26 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { generateLineup, type GenerateLineupState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const initialState: GenerateLineupState = {};
+
+function attendanceStorageKey(gameId: string) {
+  return `kickball-manager:attendance:${gameId}`;
+}
+
+function readAbsentIds(gameId: string): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const saved = localStorage.getItem(attendanceStorageKey(gameId));
+    return saved ? new Set(JSON.parse(saved) as string[]) : new Set();
+  } catch {
+    return new Set();
+  }
+}
 
 export function GenerateLineupForm({
   gameId,
@@ -20,6 +34,19 @@ export function GenerateLineupForm({
   const boundAction = generateLineup.bind(null, gameId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
 
+  // Who's unchecked, remembered per game in this browser — a player not in
+  // this set defaults present (so newly-added roster players default
+  // checked, same as before this remembered anything).
+  const [absentIds, setAbsentIds] = useState<Set<string>>(() => readAbsentIds(gameId));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(attendanceStorageKey(gameId), JSON.stringify([...absentIds]));
+    } catch {
+      // ignore unavailable storage (e.g. private browsing)
+    }
+  }, [absentIds, gameId]);
+
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <div>
@@ -31,7 +58,15 @@ export function GenerateLineupForm({
                 id={`present-${player.id}`}
                 name="presentPlayerIds"
                 value={player.id}
-                defaultChecked
+                checked={!absentIds.has(player.id)}
+                onCheckedChange={(checked) =>
+                  setAbsentIds((prev) => {
+                    const next = new Set(prev);
+                    if (checked) next.delete(player.id);
+                    else next.add(player.id);
+                    return next;
+                  })
+                }
               />
               <Label htmlFor={`present-${player.id}`} className="font-normal">
                 {player.name}
