@@ -34,6 +34,28 @@ export function PositionOverridesForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-5">
+        <div className="flex gap-1">
+          <dt className="font-medium text-foreground">1</dt>
+          <dd>Unacceptable</dd>
+        </div>
+        <div className="flex gap-1">
+          <dt className="font-medium text-foreground">2</dt>
+          <dd>Below average</dd>
+        </div>
+        <div className="flex gap-1">
+          <dt className="font-medium text-foreground">3</dt>
+          <dd>Average (the default when unrated)</dd>
+        </div>
+        <div className="flex gap-1">
+          <dt className="font-medium text-foreground">4</dt>
+          <dd>Above average</dd>
+        </div>
+        <div className="flex gap-1">
+          <dt className="font-medium text-foreground">5</dt>
+          <dd>Perfect fit</dd>
+        </div>
+      </dl>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
