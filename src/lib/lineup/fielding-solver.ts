@@ -1,5 +1,21 @@
+import path from "node:path";
 import type { Gender } from "@/db/schema";
 import highsLoader from "highs";
+
+// Turbopack rewrites highs.js's own bundled path lookup for its companion
+// .wasm file, breaking the default resolution (and a require.resolve() to
+// the package's "runtime" export subpath just makes Turbopack try, and
+// fail, to run the file through its own broken WASM-asset pipeline). Build
+// the real filesystem path by hand instead, from segments that never spell
+// out ".wasm" as a single string literal, so no bundler asset pipeline
+// recognizes it as an import to intercept.
+const HIGHS_WASM_PATH = path.join(
+  process.cwd(),
+  "node_modules",
+  "highs",
+  "build",
+  ["highs", "wasm"].join("."),
+);
 
 export const BENCH = "BENCH";
 
@@ -51,7 +67,9 @@ export interface FieldingSolverResult {
 // it across every solve call in this process instead of per-call.
 let highsPromise: ReturnType<typeof highsLoader> | null = null;
 function getHighs() {
-  if (!highsPromise) highsPromise = highsLoader();
+  if (!highsPromise) {
+    highsPromise = highsLoader({ locateFile: () => HIGHS_WASM_PATH });
+  }
   return highsPromise;
 }
 
