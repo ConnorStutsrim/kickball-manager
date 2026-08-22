@@ -87,7 +87,10 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * patch a gender-blind rotation after the fact. Which position each
  * fielder plays is a pure best-fit optimization — an importance-weighted
  * optimal assignment (Hungarian algorithm) over each player's rating
- * (1-10, default 5) at each position.
+ * (1-10, default 5) at each position. Finally, the lowest-quality inning
+ * (by summed importance-weighted rating) is relabeled as the last inning —
+ * the team's extra/tie-breaker slot, so the weakest lineup lands on the
+ * inning that might not even get played.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
@@ -160,6 +163,11 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
       .slice(0, count);
   }
 
+  // Each inning's total fielding quality (importance * rating, summed
+  // across its fielders), used after the loop to relabel the weakest
+  // inning as the last one.
+  const qualityByInning = new Map<number, number>();
+
   for (let inning = 1; inning <= innings; inning++) {
     // Fill each gender's minimum first, from whoever of that gender has
     // fielded the fewest innings so far, then fill the remaining "flex"
@@ -191,19 +199,33 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
         }),
       );
       const assignment = solveAssignment(costMatrix);
+      let inningQuality = 0;
       assignment.forEach((positionIndex, fielderIndex) => {
-        assignments.push({
-          inning,
-          playerId: fielders[fielderIndex].id,
-          position: usedPositions[positionIndex].name,
-        });
+        const player = fielders[fielderIndex];
+        const position = usedPositions[positionIndex];
+        const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
+        inningQuality += position.importance * rating;
+        assignments.push({ inning, playerId: player.id, position: position.name });
       });
+      qualityByInning.set(inning, inningQuality);
     }
 
     const assignedThisInning = new Set(fielders.map((p) => p.id));
     for (const p of players) {
       if (!assignedThisInning.has(p.id)) {
         assignments.push({ inning, playerId: p.id, position: BENCH });
+      }
+    }
+  }
+
+  if (qualityByInning.size >= 2) {
+    const [weakestInning] = [...qualityByInning.entries()].reduce((worst, entry) =>
+      entry[1] < worst[1] ? entry : worst,
+    );
+    if (weakestInning !== innings) {
+      for (const a of assignments) {
+        if (a.inning === weakestInning) a.inning = innings;
+        else if (a.inning === innings) a.inning = weakestInning;
       }
     }
   }

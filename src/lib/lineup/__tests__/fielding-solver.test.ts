@@ -261,4 +261,45 @@ describe("solveFielding", () => {
       expect(inningPositions).toEqual(["C", "P"]);
     }
   });
+
+  it("relabels the weakest-quality inning as the final (extra) inning", () => {
+    const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
+    // 3 players, 2 positions -> bench of 1, so fair rotation guarantees
+    // each player sits out exactly one of the 3 innings. "weak" is rated
+    // badly at both positions (default 5 everywhere for the others), so
+    // the one inning where "weak" is benched is the strongest, and the
+    // two innings where "weak" fields are the (tied) weakest.
+    const players: FieldingSolverPlayer[] = [
+      { id: "strong-a", gender: "M" },
+      { id: "strong-b", gender: "F" },
+      { id: "weak", gender: "M" },
+    ];
+
+    const { assignments } = solveFielding({
+      players,
+      positions,
+      innings: 3,
+      genderMinimums: [],
+      seed: 2,
+      ratings: [
+        { playerId: "weak", positionName: "P", rating: 1 },
+        { playerId: "weak", positionName: "C", rating: 1 },
+      ],
+    });
+
+    const ratingFor = (playerId: string) => (playerId === "weak" ? 1 : 5);
+    const qualityByInning = new Map<number, number>();
+    for (const a of assignments) {
+      if (a.position === BENCH) continue;
+      const importance = positions.find((p) => p.name === a.position)!.importance;
+      qualityByInning.set(
+        a.inning,
+        (qualityByInning.get(a.inning) ?? 0) + importance * ratingFor(a.playerId),
+      );
+    }
+
+    const lastInningQuality = qualityByInning.get(3)!;
+    const minQuality = Math.min(...qualityByInning.values());
+    expect(lastInningQuality).toBe(minQuality);
+  });
 });
