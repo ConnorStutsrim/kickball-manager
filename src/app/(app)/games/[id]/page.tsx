@@ -65,8 +65,8 @@ export default async function GamePage(props: PageProps<"/games/[id]">) {
       )}
 
       {lineup && (
-        <div className="grid gap-8 lg:grid-cols-2">
-          <div>
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          <div className="lg:shrink-0">
             <h2 className="mb-3 text-lg font-semibold">Batting order</h2>
             <BattingOrderList
               gameId={id}
@@ -74,7 +74,7 @@ export default async function GamePage(props: PageProps<"/games/[id]">) {
               battingOrder={lineup.battingOrder}
             />
           </div>
-          <div>
+          <div className="lg:min-w-0 lg:flex-1">
             <h2 className="mb-3 text-lg font-semibold">Fielding</h2>
             <FieldingGrid
               gameId={id}
