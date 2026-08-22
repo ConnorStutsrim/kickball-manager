@@ -29,6 +29,11 @@ export function DefensiveNoteForm({
 }) {
   const boundAction = recordDefensiveNote.bind(null, gameId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
+  // Base UI's Select doesn't scrape rendered SelectItem children to label
+  // the trigger the way a native <select> does — it needs an explicit
+  // value->label map (or, for DEFENSIVE_NOTE_TAG_OPTIONS below, an array
+  // already shaped as {value, label}, which it also accepts directly).
+  const rosterItems = Object.fromEntries(roster.map((p) => [p.id, p.name]));
 
   return (
     <form action={formAction} className="flex flex-col gap-3 rounded-md border p-4">
@@ -36,7 +41,7 @@ export function DefensiveNoteForm({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <div className="flex flex-col gap-2">
           <Label htmlFor="dn-player">Player</Label>
-          <Select name="playerId">
+          <Select name="playerId" items={rosterItems}>
             <SelectTrigger id="dn-player" className="w-full">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
@@ -70,7 +75,7 @@ export function DefensiveNoteForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="dn-tag">Tag</Label>
-          <Select name="tag">
+          <Select name="tag" items={DEFENSIVE_NOTE_TAG_OPTIONS}>
             <SelectTrigger id="dn-tag" className="w-full">
               <SelectValue placeholder="None" />
             </SelectTrigger>

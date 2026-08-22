@@ -44,6 +44,10 @@ export function FieldingGrid({
   const [pending, startTransition] = useTransition();
   const inningNumbers = Array.from({ length: innings }, (_, i) => i + 1);
   const sortedRoster = [...roster].sort((a, b) => a.name.localeCompare(b.name));
+  // Unlike a native <select>, Base UI's Select doesn't scrape rendered
+  // SelectItem children to label the trigger — it needs this map to resolve
+  // a player id back to a display name.
+  const rosterItems = Object.fromEntries(sortedRoster.map((p) => [p.id, p.name]));
 
   const cell = new Map<string, FieldingEntry>();
   for (const entry of fielding) {
@@ -79,6 +83,7 @@ export function FieldingGrid({
                 return (
                   <TableCell key={inning}>
                     <Select
+                      items={rosterItems}
                       value={entry?.playerId ?? null}
                       disabled={pending || !entry}
                       onValueChange={(playerId) =>

@@ -27,6 +27,11 @@ export function BaserunningForm({
 }) {
   const boundAction = recordBaserunningEvent.bind(null, gameId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
+  // Base UI's Select doesn't scrape rendered SelectItem children to label
+  // the trigger the way a native <select> does — it needs an explicit
+  // value->label map (or, for BASERUNNING_EVENT_OPTIONS below, an array
+  // already shaped as {value, label}, which it also accepts directly).
+  const rosterItems = Object.fromEntries(roster.map((p) => [p.id, p.name]));
 
   return (
     <form action={formAction} className="flex flex-col gap-3 rounded-md border p-4">
@@ -34,7 +39,7 @@ export function BaserunningForm({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="br-player">Player</Label>
-          <Select name="playerId">
+          <Select name="playerId" items={rosterItems}>
             <SelectTrigger id="br-player" className="w-full">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
@@ -53,7 +58,7 @@ export function BaserunningForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="br-type">Event</Label>
-          <Select name="eventType">
+          <Select name="eventType" items={BASERUNNING_EVENT_OPTIONS}>
             <SelectTrigger id="br-type" className="w-full">
               <SelectValue placeholder="Select" />
             </SelectTrigger>
