@@ -49,10 +49,19 @@ export function AtBatPanel({
         <p className="text-xl font-semibold">
           {batterName} <span className="text-base text-muted-foreground">(#{battingPosition})</span>
         </p>
-        <p className="text-sm">
-          {"●".repeat(outs)}
-          {"○".repeat(Math.max(0, 3 - outs))} outs
-        </p>
+        <div className="flex items-center gap-1.5" role="img" aria-label={`${outs} of 3 outs`}>
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className={
+                i < outs
+                  ? "size-2.5 rounded-full bg-destructive"
+                  : "size-2.5 rounded-full border border-muted-foreground/40"
+              }
+            />
+          ))}
+          <span className="ml-1 text-sm text-muted-foreground">{outs} outs</span>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">

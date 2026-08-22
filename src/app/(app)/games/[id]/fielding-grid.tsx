@@ -11,6 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface FieldingEntry {
   inning: number;
@@ -71,28 +78,32 @@ export function FieldingGrid({
                 const entry = cell.get(`${inning}:${position}`);
                 return (
                   <TableCell key={inning}>
-                    <select
-                      className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                      value={entry?.playerId ?? ""}
+                    <Select
+                      value={entry?.playerId ?? null}
                       disabled={pending || !entry}
-                      onChange={(e) =>
+                      onValueChange={(playerId) =>
                         startTransition(() =>
                           setFieldingAssignment(
                             gameId,
                             lineupId,
                             inning,
                             position,
-                            e.target.value,
+                            playerId as string,
                           ),
                         )
                       }
                     >
-                      {sortedRoster.map((player) => (
-                        <option key={player.id} value={player.id}>
-                          {player.name}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sortedRoster.map((player) => (
+                          <SelectItem key={player.id} value={player.id}>
+                            {player.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                 );
               })}

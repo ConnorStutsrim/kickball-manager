@@ -21,14 +21,14 @@ export default async function GoogleSettingsPage(
 
       {error && <p className="text-sm text-destructive">{error}</p>}
       {justConnected && !error && (
-        <p className="text-sm text-emerald-600 dark:text-emerald-500">
+        <p className="text-sm text-success">
           Connected successfully.
         </p>
       )}
 
       <p className="text-sm">
         Status:{" "}
-        <span className={connected ? "text-emerald-600 dark:text-emerald-500" : "text-muted-foreground"}>
+        <span className={connected ? "text-success" : "text-muted-foreground"}>
           {connected ? "Connected" : "Not connected"}
         </span>
       </p>
