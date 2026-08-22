@@ -43,12 +43,12 @@ describe("battingAptitude", () => {
   it("defaults missing ratings to the neutral midpoint", () => {
     const player = skills(); // everything null
     const a = archetype({ weightPower: 1, weightBaserunning: 1 });
-    expect(battingAptitude(player, a)).toBe(3);
+    expect(battingAptitude(player, a)).toBe(5);
   });
 
   it("falls back to neutral when an archetype has no weights configured", () => {
     const player = skills({ power: 5, placement: 5, bunting: 5, baserunning: 5 });
     const unconfigured = archetype(); // all weights 0
-    expect(battingAptitude(player, unconfigured)).toBe(3);
+    expect(battingAptitude(player, unconfigured)).toBe(5);
   });
 });

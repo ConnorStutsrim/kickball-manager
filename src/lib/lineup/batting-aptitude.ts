@@ -1,4 +1,4 @@
-const NEUTRAL_RATING = 3;
+const NEUTRAL_RATING = 5;
 
 export interface BatterSkills {
   power: number | null;

@@ -4,20 +4,13 @@ import {
   solveFielding,
   type FieldingSolverPlayer,
   type GenderMinimum,
+  type PositionProfile,
 } from "../fielding-solver";
-import type { PositionProfile } from "../position-aptitude";
 
-function makePosition(
-  name: string,
-  overrides: Partial<Omit<PositionProfile, "name">> = {},
-): PositionProfile {
+function makePosition(name: string, overrides: Partial<Omit<PositionProfile, "name">> = {}): PositionProfile {
   return {
     name,
     importance: 3,
-    weightSpeed: 1,
-    weightCatching: 1,
-    weightThrowing: 1,
-    weightGameSense: 1,
     ...overrides,
   };
 }
@@ -43,9 +36,8 @@ const STANDARD_MINIMUMS: GenderMinimum[] = [
 
 function makeRoster(mCount: number, fCount: number): FieldingSolverPlayer[] {
   const players: FieldingSolverPlayer[] = [];
-  const base = { speed: null, catching: null, throwing: null, gameSense: null };
-  for (let i = 0; i < mCount; i++) players.push({ id: `m${i}`, gender: "M", ...base });
-  for (let i = 0; i < fCount; i++) players.push({ id: `f${i}`, gender: "F", ...base });
+  for (let i = 0; i < mCount; i++) players.push({ id: `m${i}`, gender: "M" });
+  for (let i = 0; i < fCount; i++) players.push({ id: `f${i}`, gender: "F" });
   return players;
 }
 
@@ -197,30 +189,10 @@ describe("solveFielding", () => {
     expect(second).toEqual(first);
   });
 
-  it("puts the clearly-best-fit player at a position over a clearly weaker one", () => {
-    // Two-position, two-player game: ace is a great catcher and a poor
-    // pitcher, rookie is the reverse. The optimal assignment should not
-    // just alternate/rotate — it should exploit the clear fit.
-    const positions: PositionProfile[] = [
-      makePosition("P", { weightThrowing: 1, weightSpeed: 0, weightCatching: 0, weightGameSense: 0 }),
-      makePosition("C", { weightCatching: 1, weightSpeed: 0, weightThrowing: 0, weightGameSense: 0 }),
-    ];
-    const ace: FieldingSolverPlayer = {
-      id: "ace",
-      gender: "M",
-      speed: null,
-      catching: 5,
-      throwing: 1,
-      gameSense: null,
-    };
-    const rookie: FieldingSolverPlayer = {
-      id: "rookie",
-      gender: "F",
-      speed: null,
-      catching: 1,
-      throwing: 5,
-      gameSense: null,
-    };
+  it("assigns players according to their position ratings", () => {
+    const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
+    const ace: FieldingSolverPlayer = { id: "ace", gender: "M" };
+    const rookie: FieldingSolverPlayer = { id: "rookie", gender: "F" };
 
     const { assignments } = solveFielding({
       players: [ace, rookie],
@@ -228,6 +200,12 @@ describe("solveFielding", () => {
       innings: 3,
       genderMinimums: [],
       seed: 1,
+      ratings: [
+        { playerId: "ace", positionName: "C", rating: 10 },
+        { playerId: "ace", positionName: "P", rating: 1 },
+        { playerId: "rookie", positionName: "P", rating: 10 },
+        { playerId: "rookie", positionName: "C", rating: 1 },
+      ],
     });
 
     for (const a of assignments) {
@@ -236,32 +214,10 @@ describe("solveFielding", () => {
     }
   });
 
-  it("honors a position override over computed aptitude", () => {
-    // Both players and both positions are fully symmetric on paper (same
-    // ratings, same weights) — without an override, nothing distinguishes
-    // who plays where. An override on one (player, position) pair should
-    // still deterministically flip the optimal assignment to honor it, and
-    // the other player falls back to computed aptitude for their slot.
-    const positions: PositionProfile[] = [
-      makePosition("P", { weightThrowing: 1, weightSpeed: 0, weightCatching: 0, weightGameSense: 0 }),
-      makePosition("C", { weightCatching: 1, weightSpeed: 0, weightThrowing: 0, weightGameSense: 0 }),
-    ];
-    const ace: FieldingSolverPlayer = {
-      id: "ace",
-      gender: "M",
-      speed: null,
-      catching: 3,
-      throwing: 3,
-      gameSense: null,
-    };
-    const rookie: FieldingSolverPlayer = {
-      id: "rookie",
-      gender: "F",
-      speed: null,
-      catching: 3,
-      throwing: 3,
-      gameSense: null,
-    };
+  it("defaults to average (5) for a position with no explicit rating", () => {
+    const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
+    const ace: FieldingSolverPlayer = { id: "ace", gender: "M" };
+    const rookie: FieldingSolverPlayer = { id: "rookie", gender: "F" };
 
     const { assignments } = solveFielding({
       players: [ace, rookie],
@@ -269,50 +225,40 @@ describe("solveFielding", () => {
       innings: 3,
       genderMinimums: [],
       seed: 1,
-      overrides: [{ playerId: "ace", positionName: "P", rating: 5 }],
+      // ace is explicitly bad at P (1); C is left unrated, defaulting to
+      // average (5) — still better than P for ace, so ace should get C.
+      ratings: [{ playerId: "ace", positionName: "P", rating: 1 }],
     });
 
-    for (const a of assignments) {
-      if (a.playerId === "ace") expect(a.position).toBe("P");
-      if (a.playerId === "rookie") expect(a.position).toBe("C");
-    }
-  });
-
-  it("ignores an override for a player/position pair that isn't in play", () => {
-    const positions: PositionProfile[] = [
-      makePosition("P", { weightThrowing: 1, weightSpeed: 0, weightCatching: 0, weightGameSense: 0 }),
-      makePosition("C", { weightCatching: 1, weightSpeed: 0, weightThrowing: 0, weightGameSense: 0 }),
-    ];
-    const ace: FieldingSolverPlayer = {
-      id: "ace",
-      gender: "M",
-      speed: null,
-      catching: 5,
-      throwing: 1,
-      gameSense: null,
-    };
-    const rookie: FieldingSolverPlayer = {
-      id: "rookie",
-      gender: "F",
-      speed: null,
-      catching: 1,
-      throwing: 5,
-      gameSense: null,
-    };
-
-    const { assignments } = solveFielding({
-      players: [ace, rookie],
-      positions,
-      innings: 3,
-      genderMinimums: [],
-      seed: 1,
-      overrides: [{ playerId: "someone-else", positionName: "P", rating: 5 }],
-    });
-
-    // Same outcome as the no-override "clearly-best-fit" test above.
     for (const a of assignments) {
       if (a.playerId === "ace") expect(a.position).toBe("C");
       if (a.playerId === "rookie") expect(a.position).toBe("P");
+    }
+  });
+
+  it("ignores a rating for a player/position pair that isn't in play", () => {
+    const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
+    const ace: FieldingSolverPlayer = { id: "ace", gender: "M" };
+    const rookie: FieldingSolverPlayer = { id: "rookie", gender: "F" };
+
+    const { assignments } = solveFielding({
+      players: [ace, rookie],
+      positions,
+      innings: 3,
+      genderMinimums: [],
+      seed: 1,
+      ratings: [{ playerId: "someone-else", positionName: "P", rating: 10 }],
+    });
+
+    // No usable rating for either player -> both default to average (5)
+    // everywhere, so the outcome isn't determined by rating — just confirm
+    // every inning is still a valid, complete assignment.
+    for (let inning = 1; inning <= 3; inning++) {
+      const inningPositions = assignments
+        .filter((a) => a.inning === inning)
+        .map((a) => a.position)
+        .sort();
+      expect(inningPositions).toEqual(["C", "P"]);
     }
   });
 });

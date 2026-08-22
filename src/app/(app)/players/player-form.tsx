@@ -21,13 +21,6 @@ const BATTING_RATING_FIELDS = [
   { name: "ratingBaserunning", label: "Baserunning" },
 ] as const;
 
-const FIELDING_RATING_FIELDS = [
-  { name: "ratingSpeed", label: "Speed" },
-  { name: "ratingCatching", label: "Catching" },
-  { name: "ratingThrowing", label: "Throwing" },
-  { name: "ratingGameSense", label: "Game sense" },
-] as const;
-
 const initialState: PlayerFormState = {};
 
 export function PlayerForm({
@@ -63,7 +56,7 @@ export function PlayerForm({
 
       <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <legend className="col-span-full text-sm font-medium text-muted-foreground">
-          Batting ratings (1-5, optional)
+          Batting ratings (1-10, optional)
         </legend>
         {BATTING_RATING_FIELDS.map((field) => (
           <div key={field.name} className="flex flex-col gap-2">
@@ -73,26 +66,7 @@ export function PlayerForm({
               name={field.name}
               type="number"
               min={1}
-              max={5}
-              defaultValue={player?.[field.name] ?? undefined}
-            />
-          </div>
-        ))}
-      </fieldset>
-
-      <fieldset className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <legend className="col-span-full text-sm font-medium text-muted-foreground">
-          Fielding ratings (1-5, optional)
-        </legend>
-        {FIELDING_RATING_FIELDS.map((field) => (
-          <div key={field.name} className="flex flex-col gap-2">
-            <Label htmlFor={field.name}>{field.label}</Label>
-            <Input
-              id={field.name}
-              name={field.name}
-              type="number"
-              min={1}
-              max={5}
+              max={10}
               defaultValue={player?.[field.name] ?? undefined}
             />
           </div>

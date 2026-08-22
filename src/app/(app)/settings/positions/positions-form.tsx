@@ -14,13 +14,6 @@ import {
 } from "@/components/ui/table";
 import type { Position } from "@/lib/data/positions";
 
-const WEIGHT_FIELDS = [
-  { key: "weightSpeed", label: "Speed" },
-  { key: "weightCatching", label: "Catching" },
-  { key: "weightThrowing", label: "Throwing" },
-  { key: "weightGameSense", label: "Game sense" },
-] as const;
-
 const initialState: PositionsFormState = {};
 
 export function PositionsForm({ positions }: { positions: Position[] }) {
@@ -34,11 +27,6 @@ export function PositionsForm({ positions }: { positions: Position[] }) {
             <TableRow>
               <TableHead>Position</TableHead>
               <TableHead className="w-20">Importance</TableHead>
-              {WEIGHT_FIELDS.map((f) => (
-                <TableHead key={f.key} className="w-24">
-                  {f.label}
-                </TableHead>
-              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -57,17 +45,6 @@ export function PositionsForm({ positions }: { positions: Position[] }) {
                     defaultValue={position.importance}
                   />
                 </TableCell>
-                {WEIGHT_FIELDS.map((f) => (
-                  <TableCell key={f.key}>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={5}
-                      name={`${f.key}-${position.id}`}
-                      defaultValue={position[f.key]}
-                    />
-                  </TableCell>
-                ))}
               </TableRow>
             ))}
           </TableBody>

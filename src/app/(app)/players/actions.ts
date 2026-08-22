@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { players, playerPositionOverrides, genderEnum } from "@/db/schema";
+import { players, playerPositionRatings, genderEnum } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
 const ratingSchema = z
   .preprocess(
     (val) => (val === "" ? undefined : val),
-    z.coerce.number().int().min(1).max(5).optional(),
+    z.coerce.number().int().min(1).max(10).optional(),
   );
 
 const playerSchema = z.object({
@@ -20,10 +20,6 @@ const playerSchema = z.object({
   ratingPlacement: ratingSchema,
   ratingBunting: ratingSchema,
   ratingBaserunning: ratingSchema,
-  ratingSpeed: ratingSchema,
-  ratingCatching: ratingSchema,
-  ratingThrowing: ratingSchema,
-  ratingGameSense: ratingSchema,
 });
 
 export type PlayerFormState = { error?: string };
@@ -36,10 +32,6 @@ function parsePlayerForm(formData: FormData) {
     ratingPlacement: formData.get("ratingPlacement"),
     ratingBunting: formData.get("ratingBunting"),
     ratingBaserunning: formData.get("ratingBaserunning"),
-    ratingSpeed: formData.get("ratingSpeed"),
-    ratingCatching: formData.get("ratingCatching"),
-    ratingThrowing: formData.get("ratingThrowing"),
-    ratingGameSense: formData.get("ratingGameSense"),
   });
 }
 
@@ -88,13 +80,13 @@ export async function deletePlayer(playerId: string) {
   revalidatePath("/players");
 }
 
-export type PositionOverridesFormState = { error?: string };
+export type PositionRatingsFormState = { error?: string };
 
-export async function updatePlayerPositionOverrides(
+export async function updatePlayerPositionRatings(
   playerId: string,
-  _prevState: PositionOverridesFormState,
+  _prevState: PositionRatingsFormState,
   formData: FormData,
-): Promise<PositionOverridesFormState> {
+): Promise<PositionRatingsFormState> {
   await requireUser();
 
   const allPositions = await db.query.positions.findMany();
@@ -114,19 +106,19 @@ export async function updatePlayerPositionOverrides(
       if (!parsed.success) continue;
       if (parsed.data === undefined) {
         await tx
-          .delete(playerPositionOverrides)
+          .delete(playerPositionRatings)
           .where(
             and(
-              eq(playerPositionOverrides.playerId, playerId),
-              eq(playerPositionOverrides.positionId, positionId),
+              eq(playerPositionRatings.playerId, playerId),
+              eq(playerPositionRatings.positionId, positionId),
             ),
           );
       } else {
         await tx
-          .insert(playerPositionOverrides)
+          .insert(playerPositionRatings)
           .values({ playerId, positionId, rating: parsed.data })
           .onConflictDoUpdate({
-            target: [playerPositionOverrides.playerId, playerPositionOverrides.positionId],
+            target: [playerPositionRatings.playerId, playerPositionRatings.positionId],
             set: { rating: parsed.data },
           });
       }

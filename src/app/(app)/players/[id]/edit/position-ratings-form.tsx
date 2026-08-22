@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { updatePlayerPositionOverrides, type PositionOverridesFormState } from "../../actions";
+import { updatePlayerPositionRatings, type PositionRatingsFormState } from "../../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,24 +13,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Position } from "@/lib/data/positions";
-import type { PlayerPositionOverride } from "@/lib/data/position-overrides";
+import type { PlayerPositionRating } from "@/lib/data/position-ratings";
 
-const initialState: PositionOverridesFormState = {};
+const initialState: PositionRatingsFormState = {};
 
-export function PositionOverridesForm({
+export function PositionRatingsForm({
   playerId,
   positions,
-  overrides,
+  ratings,
 }: {
   playerId: string;
   positions: Position[];
-  overrides: PlayerPositionOverride[];
+  ratings: PlayerPositionRating[];
 }) {
   const [state, formAction, pending] = useActionState(
-    updatePlayerPositionOverrides.bind(null, playerId),
+    updatePlayerPositionRatings.bind(null, playerId),
     initialState,
   );
-  const overrideByPositionId = new Map(overrides.map((o) => [o.positionId, o.rating]));
+  const ratingByPositionId = new Map(ratings.map((r) => [r.positionId, r.rating]));
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -40,19 +40,19 @@ export function PositionOverridesForm({
           <dd>Unacceptable</dd>
         </div>
         <div className="flex gap-1">
-          <dt className="font-medium text-foreground">2</dt>
+          <dt className="font-medium text-foreground">3</dt>
           <dd>Below average</dd>
         </div>
         <div className="flex gap-1">
-          <dt className="font-medium text-foreground">3</dt>
+          <dt className="font-medium text-foreground">5</dt>
           <dd>Average (the default when unrated)</dd>
         </div>
         <div className="flex gap-1">
-          <dt className="font-medium text-foreground">4</dt>
+          <dt className="font-medium text-foreground">7</dt>
           <dd>Above average</dd>
         </div>
         <div className="flex gap-1">
-          <dt className="font-medium text-foreground">5</dt>
+          <dt className="font-medium text-foreground">10</dt>
           <dd>Perfect fit</dd>
         </div>
       </dl>
@@ -61,7 +61,7 @@ export function PositionOverridesForm({
           <TableHeader>
             <TableRow>
               <TableHead>Position</TableHead>
-              <TableHead className="w-24">Override</TableHead>
+              <TableHead className="w-24">Rating</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -75,10 +75,10 @@ export function PositionOverridesForm({
                   <Input
                     type="number"
                     min={1}
-                    max={5}
-                    placeholder="auto"
+                    max={10}
+                    placeholder="5"
                     name={`rating-${position.id}`}
-                    defaultValue={overrideByPositionId.get(position.id) ?? ""}
+                    defaultValue={ratingByPositionId.get(position.id) ?? ""}
                   />
                 </TableCell>
               </TableRow>
@@ -90,7 +90,7 @@ export function PositionOverridesForm({
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
 
       <Button type="submit" disabled={pending} className="self-start">
-        {pending ? "Saving..." : "Save overrides"}
+        {pending ? "Saving..." : "Save ratings"}
       </Button>
     </form>
   );

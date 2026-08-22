@@ -57,6 +57,13 @@
       "when": 1787237749996,
       "tag": "0007_player_position_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787408981741,
+      "tag": "0008_fielding_ratings_rescale",
+      "breakpoints": true
     }
   ]
 }

@@ -1,19 +1,19 @@
 import { notFound } from "next/navigation";
 import { getPlayer } from "@/lib/data/players";
 import { getPositions } from "@/lib/data/positions";
-import { getPlayerPositionOverrides } from "@/lib/data/position-overrides";
+import { getPlayerPositionRatings } from "@/lib/data/position-ratings";
 import { updatePlayer } from "../../actions";
 import { PlayerForm } from "../../player-form";
-import { PositionOverridesForm } from "./position-overrides-form";
+import { PositionRatingsForm } from "./position-ratings-form";
 
 export default async function EditPlayerPage(
   props: PageProps<"/players/[id]/edit">,
 ) {
   const { id } = await props.params;
-  const [player, positions, overrides] = await Promise.all([
+  const [player, positions, ratings] = await Promise.all([
     getPlayer(id),
     getPositions(),
-    getPlayerPositionOverrides(id),
+    getPlayerPositionRatings(id),
   ]);
 
   if (!player) {
@@ -30,14 +30,13 @@ export default async function EditPlayerPage(
       />
 
       <div>
-        <h2 className="text-lg font-semibold">Position overrides</h2>
+        <h2 className="text-lg font-semibold">Position ratings</h2>
         <p className="text-sm text-muted-foreground">
-          Pin this player&apos;s fit at a specific position directly, bypassing
-          the computed skill-axis formula for that position only. Leave blank
-          to use the computed aptitude.
+          Rate this player&apos;s fit at each fielding position directly
+          (1-10). Leave blank to default to average (5).
         </p>
       </div>
-      <PositionOverridesForm playerId={id} positions={positions} overrides={overrides} />
+      <PositionRatingsForm playerId={id} positions={positions} ratings={ratings} />
     </div>
   );
 }

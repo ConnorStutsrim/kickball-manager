@@ -1,12 +1,19 @@
 import type { Gender } from "@/db/schema";
-import { positionAptitude, type PlayerSkills, type PositionProfile } from "./position-aptitude";
 import { solveAssignment } from "./hungarian";
 
 export const BENCH = "BENCH";
 
-export interface FieldingSolverPlayer extends PlayerSkills {
+// Rating a player gets at a position they have no explicit rating for.
+const DEFAULT_RATING = 5;
+
+export interface FieldingSolverPlayer {
   id: string;
   gender: Gender;
+}
+
+export interface PositionProfile {
+  name: string;
+  importance: number;
 }
 
 export interface GenderMinimum {
@@ -14,8 +21,8 @@ export interface GenderMinimum {
   min: number;
 }
 
-/** A manually pinned aptitude rating for one (player, position) pair, consulted before the computed formula. */
-export interface PositionOverride {
+/** A player's rating (1-10) at a specific fielding position. */
+export interface PositionRating {
   playerId: string;
   positionName: string;
   rating: number;
@@ -28,7 +35,7 @@ export interface FieldingSolverInput {
   genderMinimums: GenderMinimum[];
   /** Deterministic PRNG seed for bench rotation. Defaults to a hash of the sorted player ids. */
   seed?: number;
-  overrides?: PositionOverride[];
+  ratings?: PositionRating[];
 }
 
 export interface FieldingAssignment {
@@ -79,18 +86,17 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * both within each gender and across the whole roster, without needing to
  * patch a gender-blind rotation after the fact. Which position each
  * fielder plays is a pure best-fit optimization — an importance-weighted
- * optimal assignment (Hungarian algorithm) over each player's predicted
- * aptitude at each position, consulting a manual override first for any
- * (player, position) pair that has one.
+ * optimal assignment (Hungarian algorithm) over each player's rating
+ * (1-10, default 5) at each position.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
   const warnings: string[] = [];
   const assignments: FieldingAssignment[] = [];
 
-  const overrideMap = new Map<string, number>();
-  for (const o of input.overrides ?? []) {
-    overrideMap.set(`${o.playerId}::${o.positionName}`, o.rating);
+  const ratingMap = new Map<string, number>();
+  for (const r of input.ratings ?? []) {
+    ratingMap.set(`${r.playerId}::${r.positionName}`, r.rating);
   }
 
   if (players.length === 0 || innings <= 0 || positions.length === 0) {
@@ -180,8 +186,8 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     if (usedPositions.length > 0) {
       const costMatrix = fielders.map((player) =>
         usedPositions.map((position) => {
-          const override = overrideMap.get(`${player.id}::${position.name}`);
-          return -(position.importance * positionAptitude(player, position, override));
+          const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
+          return -(position.importance * rating);
         }),
       );
       const assignment = solveAssignment(costMatrix);

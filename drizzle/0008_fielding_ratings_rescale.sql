@@ -1,0 +1,9 @@
+ALTER TABLE "players" DROP COLUMN "rating_speed";
+ALTER TABLE "players" DROP COLUMN "rating_catching";
+ALTER TABLE "players" DROP COLUMN "rating_throwing";
+ALTER TABLE "players" DROP COLUMN "rating_game_sense";
+ALTER TABLE "positions" DROP COLUMN "weight_speed";
+ALTER TABLE "positions" DROP COLUMN "weight_catching";
+ALTER TABLE "positions" DROP COLUMN "weight_throwing";
+ALTER TABLE "positions" DROP COLUMN "weight_game_sense";
+ALTER TABLE "player_position_overrides" RENAME TO "player_position_ratings";

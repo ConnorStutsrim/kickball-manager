@@ -43,46 +43,35 @@ export const players = pgTable("players", {
   name: text("name").notNull(),
   gender: text("gender", { enum: genderEnum }).notNull(),
   active: boolean("active").notNull().default(true),
-  // Baseline qualitative attribute ratings (1-5), used as the lineup-construction
-  // prior before enough real plate appearances exist to derive stats from.
-  // Batting skill axes (predict batting-slot-archetype fit via
-  // batting_slot_archetypes.weight_*).
+  // Baseline qualitative batting ratings (1-10), used as the
+  // lineup-construction prior before enough real plate appearances exist to
+  // derive stats from. Predict batting-slot-archetype fit via
+  // batting_slot_archetypes.weight_*. Fielding fit isn't rated here — it's
+  // rated directly per position in player_position_ratings below.
   ratingPower: smallint("rating_power"),
   ratingPlacement: smallint("rating_placement"),
   ratingBunting: smallint("rating_bunting"),
   ratingBaserunning: smallint("rating_baserunning"),
-  // Fielding skill axes (predict position aptitude via positions.weight_*).
-  // Speed is fielding-range only — baserunning above is the batting analog,
-  // a related but distinct skill.
-  ratingSpeed: smallint("rating_speed"),
-  ratingCatching: smallint("rating_catching"),
-  ratingThrowing: smallint("rating_throwing"),
-  ratingGameSense: smallint("rating_game_sense"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }).enableRLS();
 
-// One row per fielding position: how much each skill axis predicts success
-// there (weight_*), and the position's relative importance. Both drive the
-// fielding solver's optimal (Hungarian-algorithm) position assignment.
+// One row per fielding position: its relative importance, weighted into the
+// fielding solver's optimal (Hungarian-algorithm) position assignment
+// alongside each player's rating at that position (player_position_ratings).
 export const positions = pgTable("positions", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull().unique(),
   shortCode: text("short_code").notNull(),
   displayOrder: integer("display_order").notNull(),
   importance: smallint("importance").notNull(),
-  weightSpeed: smallint("weight_speed").notNull(),
-  weightCatching: smallint("weight_catching").notNull(),
-  weightThrowing: smallint("weight_throwing").notNull(),
-  weightGameSense: smallint("weight_game_sense").notNull(),
 }).enableRLS();
 
-// Optional pinned rating for a specific (player, position) pair, consulted
-// before positionAptitude()'s computed weighted average — e.g. "Jordan is a
-// 5 at Pitcher regardless of their raw skill axes." Not every player needs
-// an override for every position, hence a sparse join table rather than a
-// wide column on `players`.
-export const playerPositionOverrides = pgTable(
-  "player_position_overrides",
+// A player's rating (1-10) at a specific fielding position, entered
+// directly rather than derived from a skill-axis formula. Not every player
+// needs a rating at every position — a missing row defaults to average (5)
+// — hence a sparse join table rather than a wide column on `players`.
+export const playerPositionRatings = pgTable(
+  "player_position_ratings",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     playerId: uuid("player_id")

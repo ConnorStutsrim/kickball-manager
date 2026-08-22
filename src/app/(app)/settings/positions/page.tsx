@@ -9,10 +9,10 @@ export default async function PositionsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Positions</h1>
         <p className="text-sm text-muted-foreground">
-          For each position: how important it is relative to the others, and
-          how much each skill axis (from a player&apos;s ratings) predicts
-          success there. The lineup generator uses these to find each
-          player&apos;s best-fit position.
+          How important each position is relative to the others when
+          optimizing assignments. Each player&apos;s actual fit at a
+          position is rated directly, per player — see a player&apos;s edit
+          page.
         </p>
       </div>
       {positions.length === 0 ? (

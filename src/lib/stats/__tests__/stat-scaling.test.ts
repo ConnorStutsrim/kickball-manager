@@ -6,27 +6,30 @@ import {
 } from "../stat-scaling";
 
 describe("statToRating", () => {
-  const tenValues = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  // 20 evenly-spaced values (double the 10 rating buckets) so interior
+  // points don't land exactly on a bucket boundary — a dataset the same
+  // size as the bucket count would make every value a boundary case.
+  const twentyValues = Array.from({ length: 20 }, (_, i) => i + 1);
 
   it("gives the lowest value in a spread-out set the lowest rating", () => {
-    expect(statToRating(1, tenValues)).toBe(1);
+    expect(statToRating(1, twentyValues)).toBe(1);
   });
 
   it("gives the highest value in a spread-out set the highest rating", () => {
-    expect(statToRating(10, tenValues)).toBe(5);
+    expect(statToRating(20, twentyValues)).toBe(10);
   });
 
   it("gives a mid-pack value a middling rating", () => {
-    expect(statToRating(5, tenValues)).toBe(3);
+    expect(statToRating(9, twentyValues)).toBe(5);
   });
 
   it("falls back to neutral when every value is tied (no spread)", () => {
-    expect(statToRating(3, [3, 3, 3])).toBe(3);
-    expect(statToRating(7, [3, 3, 3])).toBe(3);
+    expect(statToRating(3, [3, 3, 3])).toBe(5);
+    expect(statToRating(7, [3, 3, 3])).toBe(5);
   });
 
   it("falls back to neutral with an empty comparison set", () => {
-    expect(statToRating(1, [])).toBe(3);
+    expect(statToRating(1, [])).toBe(5);
   });
 });
 
@@ -36,7 +39,7 @@ describe("blendRating", () => {
   });
 
   it("defaults to neutral when neither input has a value", () => {
-    expect(blendRating(null, null, 0)).toBe(3);
+    expect(blendRating(null, null, 0)).toBe(5);
   });
 
   it("returns the qualitative rating outright at zero sample size", () => {
@@ -54,6 +57,6 @@ describe("blendRating", () => {
 
   it("treats a missing qualitative rating as neutral before blending", () => {
     expect(blendRating(null, 5, BLEND_SAMPLE_SIZE_THRESHOLD)).toBe(5);
-    expect(blendRating(null, 5, 0)).toBe(3);
+    expect(blendRating(null, 5, 0)).toBe(5);
   });
 });

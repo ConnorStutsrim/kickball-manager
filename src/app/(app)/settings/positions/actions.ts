@@ -23,17 +23,9 @@ export async function updatePositions(
     const parsed = z
       .object({
         importance: weightSchema,
-        weightSpeed: weightSchema,
-        weightCatching: weightSchema,
-        weightThrowing: weightSchema,
-        weightGameSense: weightSchema,
       })
       .safeParse({
         importance: formData.get(`importance-${position.id}`),
-        weightSpeed: formData.get(`weightSpeed-${position.id}`),
-        weightCatching: formData.get(`weightCatching-${position.id}`),
-        weightThrowing: formData.get(`weightThrowing-${position.id}`),
-        weightGameSense: formData.get(`weightGameSense-${position.id}`),
       });
     return { id: position.id, parsed };
   });

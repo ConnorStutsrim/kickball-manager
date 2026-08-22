@@ -1,12 +1,13 @@
-const NEUTRAL_RATING = 3;
+const NEUTRAL_RATING = 5;
+const RATING_BUCKETS = 10;
 
 /**
- * Converts a raw stat value onto the same 1-5 scale as qualitative ratings,
- * by percentile rank within a comparison set (typically the active roster)
- * rather than a fixed threshold — self-calibrating to whatever "good" means
- * in this specific league/season instead of a guessed cutoff. Falls back to
- * neutral when the comparison set has no spread (everyone tied, or too few
- * players to rank meaningfully).
+ * Converts a raw stat value onto the same 1-10 scale as qualitative
+ * ratings, by percentile rank within a comparison set (typically the active
+ * roster) rather than a fixed threshold — self-calibrating to whatever
+ * "good" means in this specific league/season instead of a guessed cutoff.
+ * Falls back to neutral when the comparison set has no spread (everyone
+ * tied, or too few players to rank meaningfully).
  */
 export function statToRating(value: number, allValues: number[]): number {
   if (allValues.length === 0) return NEUTRAL_RATING;
@@ -18,11 +19,7 @@ export function statToRating(value: number, allValues: number[]): number {
   const countAtOrBelow = allValues.filter((v) => v <= value).length;
   const percentile = countAtOrBelow / allValues.length;
 
-  if (percentile >= 0.8) return 5;
-  if (percentile >= 0.6) return 4;
-  if (percentile >= 0.4) return 3;
-  if (percentile >= 0.2) return 2;
-  return 1;
+  return Math.min(RATING_BUCKETS, Math.floor(percentile * RATING_BUCKETS) + 1);
 }
 
 // Opportunities (plate appearances, times-reached-base, bunt attempts —
