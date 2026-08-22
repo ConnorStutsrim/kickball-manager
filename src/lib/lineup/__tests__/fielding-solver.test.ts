@@ -302,4 +302,44 @@ describe("solveFielding", () => {
     const minQuality = Math.min(...qualityByInning.values());
     expect(lastInningQuality).toBe(minQuality);
   });
+
+  it("uses fairness-tied freedom to avoid a big skill drop-off at a position", () => {
+    const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
+    // 4 same-gender players (no gender-minimum interaction), bench of 2,
+    // 1 inning -> all four start tied at 0 fielded innings, so the solver
+    // has full freedom over which 2 field. ace is a great Pitcher but bad
+    // Catcher; star is a great Catcher but bad Pitcher; the other two are
+    // mediocre at both. The globally best achievable quality fields
+    // ace+star (10+10=20) — strictly better than any pair involving a
+    // mediocre player (13) or both mediocre players (6).
+    const ace: FieldingSolverPlayer = { id: "ace", gender: "M" };
+    const star: FieldingSolverPlayer = { id: "star", gender: "M" };
+    const mediocre1: FieldingSolverPlayer = { id: "mediocre1", gender: "M" };
+    const mediocre2: FieldingSolverPlayer = { id: "mediocre2", gender: "M" };
+
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { assignments } = solveFielding({
+        players: [ace, star, mediocre1, mediocre2],
+        positions,
+        innings: 1,
+        genderMinimums: [],
+        seed,
+        ratings: [
+          { playerId: "ace", positionName: "P", rating: 10 },
+          { playerId: "ace", positionName: "C", rating: 1 },
+          { playerId: "star", positionName: "C", rating: 10 },
+          { playerId: "star", positionName: "P", rating: 1 },
+          { playerId: "mediocre1", positionName: "P", rating: 3 },
+          { playerId: "mediocre1", positionName: "C", rating: 3 },
+          { playerId: "mediocre2", positionName: "P", rating: 3 },
+          { playerId: "mediocre2", positionName: "C", rating: 3 },
+        ],
+      });
+
+      const fieldedIds = new Set(
+        assignments.filter((a) => a.position !== BENCH).map((a) => a.playerId),
+      );
+      expect(fieldedIds).toEqual(new Set(["ace", "star"]));
+    }
+  });
 });

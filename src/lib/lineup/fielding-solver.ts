@@ -84,7 +84,12 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * that gender's minimum) and then across whoever's left (to fill the
  * remaining "flex" spots) — this keeps field-innings as equal as possible
  * both within each gender and across the whole roster, without needing to
- * patch a gender-blind rotation after the fact. Which position each
+ * patch a gender-blind rotation after the fact. Whenever that rule leaves
+ * a genuine choice (multiple same-gender players tied on field-innings-
+ * so-far), a bounded local search swaps among the fairness-tied
+ * candidates to maximize that inning's achievable fielding quality — so a
+ * team's best players at a position don't end up benched together purely
+ * by chance when an equally fair alternative existed. Which position each
  * fielder plays is a pure best-fit optimization — an importance-weighted
  * optimal assignment (Hungarian algorithm) over each player's rating
  * (1-10, default 5) at each position. Finally, the lowest-quality inning
@@ -163,6 +168,72 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
       .slice(0, count);
   }
 
+  // Solves the best-fit position assignment for a fixed set of fielders,
+  // returning both its total quality (for comparing candidate fielder
+  // sets) and the actual (player, position) pairs (for pushing into the
+  // final assignments list).
+  function solveInningAssignment(fielderList: FieldingSolverPlayer[]) {
+    const costMatrix = fielderList.map((player) =>
+      usedPositions.map((position) => {
+        const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
+        return -(position.importance * rating);
+      }),
+    );
+    const assignment = solveAssignment(costMatrix);
+    let quality = 0;
+    const pairs = assignment.map((positionIndex, fielderIndex) => {
+      const player = fielderList[fielderIndex];
+      const position = usedPositions[positionIndex];
+      const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
+      quality += position.importance * rating;
+      return { player, position };
+    });
+    return { quality, pairs };
+  }
+
+  // Among players tied on field-innings-so-far (so swapping them never
+  // changes anyone's fairness standing), greedily swap in whoever
+  // maximizes this inning's achievable fielding quality. Restricted to
+  // same-gender swaps so every gender minimum stays trivially satisfied —
+  // no extra checking needed, since a same-gender swap can't change either
+  // gender's fielded count.
+  function improveFairnessTiedFielders(fieldedIds: Set<string>): Set<string> {
+    if (usedPositions.length === 0) return fieldedIds;
+
+    let current = fieldedIds;
+    let currentQuality = solveInningAssignment(players.filter((p) => current.has(p.id))).quality;
+
+    for (let iter = 0; iter < players.length; iter++) {
+      const inPlayers = players.filter((p) => current.has(p.id));
+      const outPlayers = players.filter((p) => !current.has(p.id));
+
+      let bestNext: Set<string> | null = null;
+      let bestQuality = currentQuality;
+
+      for (const inP of inPlayers) {
+        for (const outP of outPlayers) {
+          if (inP.gender !== outP.gender) continue;
+          if (fieldInningsSoFar.get(inP.id) !== fieldInningsSoFar.get(outP.id)) continue;
+
+          const trial = new Set(current);
+          trial.delete(inP.id);
+          trial.add(outP.id);
+          const quality = solveInningAssignment(players.filter((p) => trial.has(p.id))).quality;
+          if (quality > bestQuality) {
+            bestQuality = quality;
+            bestNext = trial;
+          }
+        }
+      }
+
+      if (!bestNext) break;
+      current = bestNext;
+      currentQuality = bestQuality;
+    }
+
+    return current;
+  }
+
   // Each inning's total fielding quality (importance * rating, summed
   // across its fielders), used after the loop to relabel the weakest
   // inning as the last one.
@@ -185,29 +256,19 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
       for (const p of leastFielded(remainingPlayers, remainingSlots)) fieldedIds.add(p.id);
     }
 
-    const fielders = players.filter((p) => fieldedIds.has(p.id));
+    const improvedFieldedIds = improveFairnessTiedFielders(fieldedIds);
+    const fielders = players.filter((p) => improvedFieldedIds.has(p.id));
 
     for (const p of fielders) {
       fieldInningsSoFar.set(p.id, fieldInningsSoFar.get(p.id)! + 1);
     }
 
     if (usedPositions.length > 0) {
-      const costMatrix = fielders.map((player) =>
-        usedPositions.map((position) => {
-          const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
-          return -(position.importance * rating);
-        }),
-      );
-      const assignment = solveAssignment(costMatrix);
-      let inningQuality = 0;
-      assignment.forEach((positionIndex, fielderIndex) => {
-        const player = fielders[fielderIndex];
-        const position = usedPositions[positionIndex];
-        const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
-        inningQuality += position.importance * rating;
+      const { quality, pairs } = solveInningAssignment(fielders);
+      for (const { player, position } of pairs) {
         assignments.push({ inning, playerId: player.id, position: position.name });
-      });
-      qualityByInning.set(inning, inningQuality);
+      }
+      qualityByInning.set(inning, quality);
     }
 
     const assignedThisInning = new Set(fielders.map((p) => p.id));
