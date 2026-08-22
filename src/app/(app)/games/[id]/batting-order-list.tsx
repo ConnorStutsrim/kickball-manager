@@ -16,11 +16,11 @@ export function BattingOrderList({
   const [pending, startTransition] = useTransition();
 
   return (
-    <ol className="flex flex-col gap-1">
+    <ol className="flex w-fit min-w-48 flex-col gap-1">
       {battingOrder.map((entry, index) => (
         <li
           key={entry.playerId}
-          className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+          className="flex items-center justify-between gap-4 rounded-md border px-3 py-2"
         >
           <span className="text-sm">
             <span className="mr-2 text-muted-foreground">{entry.battingPosition}.</span>
