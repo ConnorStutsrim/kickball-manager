@@ -64,7 +64,7 @@ export async function generateLineup(
     rating: r.rating,
   }));
 
-  const fieldingResult = solveFielding({
+  const fieldingResult = await solveFielding({
     players: roster.map((p) => ({
       id: p.id,
       gender: p.gender,
