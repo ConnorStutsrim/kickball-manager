@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import type { PlayerFormState } from "./actions";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ export function PlayerForm({
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  useActionToast(pending, !!state.error, "Player saved.");
 
   return (
     <form action={formAction} className="flex flex-col gap-4">

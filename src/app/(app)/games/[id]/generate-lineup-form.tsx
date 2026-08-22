@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { generateLineup, type GenerateLineupState } from "./actions";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -33,6 +34,7 @@ export function GenerateLineupForm({
 }) {
   const boundAction = generateLineup.bind(null, gameId);
   const [state, formAction, pending] = useActionState(boundAction, initialState);
+  useActionToast(pending, !!state.error, "Lineup generated.");
 
   // Who's unchecked, remembered per game in this browser — a player not in
   // this set defaults present (so newly-added roster players default
@@ -78,7 +80,7 @@ export function GenerateLineupForm({
 
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       {state.warnings?.map((w) => (
-        <p key={w} className="text-sm text-amber-600 dark:text-amber-500">
+        <p key={w} className="text-sm text-warning">
           {w}
         </p>
       ))}

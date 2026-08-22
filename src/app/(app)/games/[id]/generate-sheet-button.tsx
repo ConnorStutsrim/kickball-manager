@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { generateGameSheet } from "./sheet-actions";
 import { Button } from "@/components/ui/button";
 
@@ -23,6 +24,7 @@ export function GenerateSheetButton({
       } else {
         setError(undefined);
         setUrl(res.url ?? null);
+        toast.success("Sheet updated.");
       }
     });
   }

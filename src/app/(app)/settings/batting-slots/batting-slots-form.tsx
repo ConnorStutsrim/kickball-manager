@@ -2,7 +2,9 @@
 
 import { useActionState } from "react";
 import { updateBattingSlotArchetypes, type BattingSlotsFormState } from "./actions";
+import { useActionToast } from "@/hooks/use-action-toast";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -28,47 +30,50 @@ export function BattingSlotsForm({ archetypes }: { archetypes: BattingSlotArchet
     updateBattingSlotArchetypes,
     initialState,
   );
+  useActionToast(pending, !!state.error, "Settings saved.");
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Archetype</TableHead>
-              {WEIGHT_FIELDS.map((f) => (
-                <TableHead key={f.key} className="w-24">
-                  {f.label}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {archetypes.map((archetype) => (
-              <TableRow key={archetype.id}>
-                <TableCell className="font-medium">{archetype.name}</TableCell>
+    <Card>
+      <CardContent>
+        <form action={formAction} className="flex flex-col gap-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Archetype</TableHead>
                 {WEIGHT_FIELDS.map((f) => (
-                  <TableCell key={f.key}>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={5}
-                      name={`${f.key}-${archetype.id}`}
-                      defaultValue={archetype[f.key]}
-                    />
-                  </TableCell>
+                  <TableHead key={f.key} className="w-24">
+                    {f.label}
+                  </TableHead>
                 ))}
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+            <TableBody>
+              {archetypes.map((archetype) => (
+                <TableRow key={archetype.id}>
+                  <TableCell className="font-medium">{archetype.name}</TableCell>
+                  {WEIGHT_FIELDS.map((f) => (
+                    <TableCell key={f.key}>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={5}
+                        name={`${f.key}-${archetype.id}`}
+                        defaultValue={archetype[f.key]}
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
 
-      {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+          {state.error && <p className="text-sm text-destructive">{state.error}</p>}
 
-      <Button type="submit" disabled={pending} className="self-start">
-        {pending ? "Saving..." : "Save batting slots"}
-      </Button>
-    </form>
+          <Button type="submit" disabled={pending} className="self-start">
+            {pending ? "Saving..." : "Save batting slots"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
