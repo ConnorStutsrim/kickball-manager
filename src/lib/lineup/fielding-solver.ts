@@ -89,13 +89,16 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * so-far), a bounded local search swaps among the fairness-tied
  * candidates to maximize that inning's achievable fielding quality — so a
  * team's best players at a position don't end up benched together purely
- * by chance when an equally fair alternative existed. Which position each
+ * by chance when an equally fair alternative existed. For the last inning
+ * of a multi-inning game — the team's extra/tie-breaker slot, which might
+ * not even get played — that same search instead prefers the *weaker*
+ * fairness-tied alternative: fairness (who's fielded the most/benched the
+ * least in the real innings so far) still decides who sits out, exactly as
+ * every other inning; "weaker lineup" only breaks ties within whatever
+ * freedom that leaves, never at fairness's expense. Which position each
  * fielder plays is a pure best-fit optimization — an importance-weighted
  * optimal assignment (Hungarian algorithm) over each player's rating
- * (1-10, default 5) at each position. Finally, the lowest-quality inning
- * (by summed importance-weighted rating) is relabeled as the last inning —
- * the team's extra/tie-breaker slot, so the weakest lineup lands on the
- * inning that might not even get played.
+ * (1-10, default 5) at each position.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
@@ -193,12 +196,18 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
 
   // Among players tied on field-innings-so-far (so swapping them never
   // changes anyone's fairness standing), greedily swap in whoever
-  // maximizes this inning's achievable fielding quality. Restricted to
-  // same-gender swaps so every gender minimum stays trivially satisfied —
-  // no extra checking needed, since a same-gender swap can't change either
-  // gender's fielded count.
-  function improveFairnessTiedFielders(fieldedIds: Set<string>): Set<string> {
+  // maximizes (or, when preferWeaker, minimizes) this inning's achievable
+  // fielding quality. Restricted to same-gender swaps so every gender
+  // minimum stays trivially satisfied — no extra checking needed, since a
+  // same-gender swap can't change either gender's fielded count.
+  function improveFairnessTiedFielders(
+    fieldedIds: Set<string>,
+    preferWeaker: boolean,
+  ): Set<string> {
     if (usedPositions.length === 0) return fieldedIds;
+
+    const isBetter = (candidate: number, best: number) =>
+      preferWeaker ? candidate < best : candidate > best;
 
     let current = fieldedIds;
     let currentQuality = solveInningAssignment(players.filter((p) => current.has(p.id))).quality;
@@ -219,7 +228,7 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
           trial.delete(inP.id);
           trial.add(outP.id);
           const quality = solveInningAssignment(players.filter((p) => trial.has(p.id))).quality;
-          if (quality > bestQuality) {
+          if (isBetter(quality, bestQuality)) {
             bestQuality = quality;
             bestNext = trial;
           }
@@ -233,11 +242,6 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
 
     return current;
   }
-
-  // Each inning's total fielding quality (importance * rating, summed
-  // across its fielders), used after the loop to relabel the weakest
-  // inning as the last one.
-  const qualityByInning = new Map<number, number>();
 
   for (let inning = 1; inning <= innings; inning++) {
     // Fill each gender's minimum first, from whoever of that gender has
@@ -256,7 +260,12 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
       for (const p of leastFielded(remainingPlayers, remainingSlots)) fieldedIds.add(p.id);
     }
 
-    const improvedFieldedIds = improveFairnessTiedFielders(fieldedIds);
+    // The last inning of a multi-inning game is the extra/tie-breaker
+    // slot — fairness (computed above) still decides who sits out, but
+    // among fairness-tied alternatives, prefer the weaker lineup there
+    // instead of the stronger one every other inning prefers.
+    const preferWeaker = inning === innings && innings >= 2;
+    const improvedFieldedIds = improveFairnessTiedFielders(fieldedIds, preferWeaker);
     const fielders = players.filter((p) => improvedFieldedIds.has(p.id));
 
     for (const p of fielders) {
@@ -264,29 +273,16 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     }
 
     if (usedPositions.length > 0) {
-      const { quality, pairs } = solveInningAssignment(fielders);
+      const { pairs } = solveInningAssignment(fielders);
       for (const { player, position } of pairs) {
         assignments.push({ inning, playerId: player.id, position: position.name });
       }
-      qualityByInning.set(inning, quality);
     }
 
     const assignedThisInning = new Set(fielders.map((p) => p.id));
     for (const p of players) {
       if (!assignedThisInning.has(p.id)) {
         assignments.push({ inning, playerId: p.id, position: BENCH });
-      }
-    }
-  }
-
-  if (qualityByInning.size >= 2) {
-    const [weakestInning] = [...qualityByInning.entries()].reduce((worst, entry) =>
-      entry[1] < worst[1] ? entry : worst,
-    );
-    if (weakestInning !== innings) {
-      for (const a of assignments) {
-        if (a.inning === weakestInning) a.inning = innings;
-        else if (a.inning === innings) a.inning = weakestInning;
       }
     }
   }

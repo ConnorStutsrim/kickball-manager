@@ -262,45 +262,52 @@ describe("solveFielding", () => {
     }
   });
 
-  it("relabels the weakest-quality inning as the final (extra) inning", () => {
+  it("prefers a weaker fairness-tied lineup in the extra (last) inning, not a stronger one", () => {
     const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
-    // 3 players, 2 positions -> bench of 1, so fair rotation guarantees
-    // each player sits out exactly one of the 3 innings. "weak" is rated
-    // badly at both positions (default 5 everywhere for the others), so
-    // the one inning where "weak" is benched is the strongest, and the
-    // two innings where "weak" fields are the (tied) weakest.
-    const players: FieldingSolverPlayer[] = [
-      { id: "strong-a", gender: "M" },
-      { id: "strong-b", gender: "F" },
-      { id: "weak", gender: "M" },
+    // 5 same-gender players, bench of 3, 2 innings, importance 3 at both
+    // positions. ace (10/10) + b (8/8) are strictly the best pair for
+    // inning 1 regardless of tiebreak — no other pairing including one of
+    // them beats 45, so {ace,b}=54 always wins, leaving c/d/e tied at 0
+    // fielded-innings after inning 1. For inning 2 (the extra inning), the
+    // three fairness-tied pairs among c/d/e are {c,d}=30, {c,e}=24,
+    // {d,e}=24 — max 30, min 24.
+    const ace: FieldingSolverPlayer = { id: "ace", gender: "M" };
+    const b: FieldingSolverPlayer = { id: "b", gender: "M" };
+    const c: FieldingSolverPlayer = { id: "c", gender: "M" };
+    const d: FieldingSolverPlayer = { id: "d", gender: "M" };
+    const e: FieldingSolverPlayer = { id: "e", gender: "M" };
+
+    const ratings = [
+      { playerId: "ace", positionName: "P", rating: 10 },
+      { playerId: "ace", positionName: "C", rating: 10 },
+      { playerId: "b", positionName: "P", rating: 8 },
+      { playerId: "b", positionName: "C", rating: 8 },
+      { playerId: "c", positionName: "P", rating: 5 },
+      { playerId: "c", positionName: "C", rating: 1 },
+      { playerId: "d", positionName: "P", rating: 1 },
+      { playerId: "d", positionName: "C", rating: 5 },
+      { playerId: "e", positionName: "P", rating: 3 },
+      { playerId: "e", positionName: "C", rating: 3 },
     ];
 
-    const { assignments } = solveFielding({
-      players,
-      positions,
-      innings: 3,
-      genderMinimums: [],
-      seed: 2,
-      ratings: [
-        { playerId: "weak", positionName: "P", rating: 1 },
-        { playerId: "weak", positionName: "C", rating: 1 },
-      ],
-    });
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { assignments } = solveFielding({
+        players: [ace, b, c, d, e],
+        positions,
+        innings: 2,
+        genderMinimums: [],
+        seed,
+        ratings,
+      });
 
-    const ratingFor = (playerId: string) => (playerId === "weak" ? 1 : 5);
-    const qualityByInning = new Map<number, number>();
-    for (const a of assignments) {
-      if (a.position === BENCH) continue;
-      const importance = positions.find((p) => p.name === a.position)!.importance;
-      qualityByInning.set(
-        a.inning,
-        (qualityByInning.get(a.inning) ?? 0) + importance * ratingFor(a.playerId),
-      );
+      const ratingFor = (playerId: string, position: string) =>
+        ratings.find((r) => r.playerId === playerId && r.positionName === position)!.rating;
+      const inning2Quality = assignments
+        .filter((a) => a.inning === 2 && a.position !== BENCH)
+        .reduce((sum, a) => sum + 3 * ratingFor(a.playerId, a.position), 0);
+
+      expect(inning2Quality).toBe(24);
     }
-
-    const lastInningQuality = qualityByInning.get(3)!;
-    const minQuality = Math.min(...qualityByInning.values());
-    expect(lastInningQuality).toBe(minQuality);
   });
 
   it("uses fairness-tied freedom to avoid a big skill drop-off at a position", () => {
