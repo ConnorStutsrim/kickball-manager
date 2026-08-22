@@ -104,11 +104,12 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * fielder plays is a pure best-fit optimization — an importance-weighted
  * optimal assignment (Hungarian algorithm) over each player's rating
  * (1-10, default 5) at each position. When two players are both clearly
- * the best at the same position (a "specialist" pair), the bench-priority
- * order used to break fairness ties deliberately gives them their first
- * rest at different points in the game, so they don't end up sharing a
- * bench turn purely by coincidence and dropping that position off a
- * cliff for the inning.
+ * the best at the same position (a "specialist" pair) and a fair
+ * alternative exists, the same inning is never allowed to bench both of
+ * them at once — the quality-maximizing search above is what tends to
+ * keep specialists fielding together in the first place (since that's
+ * good for quality), which otherwise sets up exactly the collision this
+ * guards against once fairness eventually forces one of them to rest.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
@@ -161,34 +162,7 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     return pairs;
   }
 
-  // Spreads each specialist-conflict pair across opposite halves of the
-  // bench-priority order, so fairness's tie-breaking doesn't accidentally
-  // give both of them their first rest at the same point in the game —
-  // by the time they'd otherwise both be uniquely "last untouched," no
-  // per-inning tie-break has anyone left to swap either of them out for.
-  function separateSpecialistConflicts(
-    baseOrder: FieldingSolverPlayer[],
-  ): FieldingSolverPlayer[] {
-    const result = [...baseOrder];
-    const half = Math.floor(result.length / 2);
-    const indexOf = (id: string) => result.findIndex((p) => p.id === id);
-
-    for (const [aId, bId] of findSpecialistConflictPairs()) {
-      const aFront = indexOf(aId) < half;
-      const bFront = indexOf(bId) < half;
-      if (aFront !== bFront) continue; // already split across halves
-
-      const oppositeHalf = aFront ? result.slice(half) : result.slice(0, half);
-      const swapWith = oppositeHalf.find((p) => p.id !== aId && p.id !== bId);
-      if (!swapWith) continue;
-
-      const bIndex = indexOf(bId);
-      const swapIndex = indexOf(swapWith.id);
-      [result[bIndex], result[swapIndex]] = [result[swapIndex], result[bIndex]];
-    }
-
-    return result;
-  }
+  const specialistConflictPairs = findSpecialistConflictPairs();
 
   const seed =
     input.seed ??
@@ -199,7 +173,7 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
         .join(","),
     );
   const rng = mulberry32(seed);
-  const order = separateSpecialistConflicts(shuffle(players, rng));
+  const order = shuffle(players, rng);
 
   const totalsByGender = new Map<Gender, number>();
   for (const p of players) {
@@ -309,6 +283,65 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     return current;
   }
 
+  // The best fairness-tied swap (same gender, same fieldInningsSoFar) that
+  // flips `subjectId`'s fielding/bench status — used to pull a specialist
+  // back in, or to rest one proactively, without touching anyone's
+  // fairness standing. Null if no such swap exists.
+  function bestFairnessTiedSwap(
+    current: Set<string>,
+    subjectId: string,
+  ): { quality: number; set: Set<string> } | null {
+    const subject = players.find((p) => p.id === subjectId)!;
+    const subjectIn = current.has(subjectId);
+
+    let best: { quality: number; set: Set<string> } | null = null;
+    for (const other of players) {
+      if (other.id === subjectId) continue;
+      if (current.has(other.id) === subjectIn) continue;
+      if (other.gender !== subject.gender) continue;
+      if (fieldInningsSoFar.get(other.id) !== fieldInningsSoFar.get(subjectId)) continue;
+
+      const trial = new Set(current);
+      if (subjectIn) {
+        trial.delete(subjectId);
+        trial.add(other.id);
+      } else {
+        trial.add(subjectId);
+        trial.delete(other.id);
+      }
+      const { quality } = solveInningAssignment(players.filter((p) => trial.has(p.id)));
+      if (!best || quality > best.quality) best = { quality, set: trial };
+    }
+    return best;
+  }
+
+  // Ensures a specialist-conflict pair is never both fielding or both
+  // benched at once while they're fairness-tied with each other (equal
+  // fieldInningsSoFar): if both are fielding, proactively rests one of
+  // them now — before fairness eventually forces the issue and leaves no
+  // fairness-tied alternative left, which is what let them collide in the
+  // first place; if both are benched, brings one back in. Run *after* the
+  // quality-maximizing search above, since that search would otherwise
+  // just undo a proactive rest (bringing a high-rated specialist back in
+  // is exactly what it optimizes for). Left as-is when no fairness-tied
+  // swap exists either way.
+  function separateSpecialistPairs(fieldedIds: Set<string>): Set<string> {
+    let current = fieldedIds;
+    for (const [aId, bId] of specialistConflictPairs) {
+      const aIn = current.has(aId);
+      const bIn = current.has(bId);
+      if (aIn !== bIn) continue;
+      if (fieldInningsSoFar.get(aId) !== fieldInningsSoFar.get(bId)) continue;
+
+      const swapA = bestFairnessTiedSwap(current, aId);
+      const swapB = bestFairnessTiedSwap(current, bId);
+      const chosen =
+        swapA && swapB ? (swapA.quality >= swapB.quality ? swapA : swapB) : (swapA ?? swapB);
+      if (chosen) current = chosen.set;
+    }
+    return current;
+  }
+
   for (let inning = 1; inning <= innings; inning++) {
     // Fill each gender's minimum first, from whoever of that gender has
     // fielded the fewest innings so far, then fill the remaining "flex"
@@ -331,8 +364,11 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
     // among fairness-tied alternatives, prefer the weaker lineup there
     // instead of the stronger one every other inning prefers.
     const preferWeaker = inning === innings && innings >= 2;
-    const improvedFieldedIds = improveFairnessTiedFielders(fieldedIds, preferWeaker);
-    const fielders = players.filter((p) => improvedFieldedIds.has(p.id));
+    const qualityFieldedIds = improveFairnessTiedFielders(fieldedIds, preferWeaker);
+    const finalFieldedIds = preferWeaker
+      ? qualityFieldedIds
+      : separateSpecialistPairs(qualityFieldedIds);
+    const fielders = players.filter((p) => finalFieldedIds.has(p.id));
 
     for (const p of fielders) {
       fieldInningsSoFar.set(p.id, fieldInningsSoFar.get(p.id)! + 1);
