@@ -349,4 +349,58 @@ describe("solveFielding", () => {
       expect(fieldedIds).toEqual(new Set(["ace", "star"]));
     }
   });
+
+  it("never benches two position specialists in the same real inning", () => {
+    // 2 specialists (s1 rated 10, s2 rated 8 at "P", clearing the 3rd-best
+    // — the default 5 — by well over SPECIALIST_MARGIN) among 6 generic
+    // players, 4 positions -> bench of 4 out of 8. Real innings are 1-6
+    // (innings=7, so 7 is the extra/tie-breaker slot) — that last inning
+    // is deliberately excluded from the assertion, since the "prefer a
+    // weaker fairness-tied lineup" behavior for the extra inning can
+    // legitimately choose to bench both specialists together if that's
+    // genuinely the weakest available combination there; the guarantee
+    // this test is about only applies to the real innings.
+    const positions: PositionProfile[] = [
+      makePosition("P"),
+      makePosition("X"),
+      makePosition("Y"),
+      makePosition("Z"),
+    ];
+    const players: FieldingSolverPlayer[] = [
+      { id: "s1", gender: "M" },
+      { id: "s2", gender: "M" },
+      { id: "g1", gender: "M" },
+      { id: "g2", gender: "M" },
+      { id: "g3", gender: "M" },
+      { id: "g4", gender: "M" },
+      { id: "g5", gender: "M" },
+      { id: "g6", gender: "M" },
+    ];
+    const ratings = [
+      { playerId: "s1", positionName: "P", rating: 10 },
+      { playerId: "s2", positionName: "P", rating: 8 },
+    ];
+
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      const { assignments } = solveFielding({
+        players,
+        positions,
+        innings: 7,
+        genderMinimums: [],
+        seed,
+        ratings,
+      });
+
+      const benchInningsFor = (playerId: string) =>
+        new Set(
+          assignments
+            .filter((a) => a.playerId === playerId && a.position === BENCH && a.inning < 7)
+            .map((a) => a.inning),
+        );
+      const s1BenchInnings = benchInningsFor("s1");
+      const s2BenchInnings = benchInningsFor("s2");
+      const overlap = [...s1BenchInnings].filter((inning) => s2BenchInnings.has(inning));
+      expect(overlap).toEqual([]);
+    }
+  });
 });

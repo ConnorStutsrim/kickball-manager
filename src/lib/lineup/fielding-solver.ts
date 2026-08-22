@@ -6,6 +6,11 @@ export const BENCH = "BENCH";
 // Rating a player gets at a position they have no explicit rating for.
 const DEFAULT_RATING = 5;
 
+// How far the top two rated players at a position must clear the third
+// before they're treated as a "specialist" pair worth keeping apart in
+// the bench-priority order (see separateSpecialistConflicts below).
+const SPECIALIST_MARGIN = 2;
+
 export interface FieldingSolverPlayer {
   id: string;
   gender: Gender;
@@ -98,7 +103,12 @@ function shuffle<T>(items: T[], rng: () => number): T[] {
  * freedom that leaves, never at fairness's expense. Which position each
  * fielder plays is a pure best-fit optimization — an importance-weighted
  * optimal assignment (Hungarian algorithm) over each player's rating
- * (1-10, default 5) at each position.
+ * (1-10, default 5) at each position. When two players are both clearly
+ * the best at the same position (a "specialist" pair), the bench-priority
+ * order used to break fairness ties deliberately gives them their first
+ * rest at different points in the game, so they don't end up sharing a
+ * bench turn purely by coincidence and dropping that position off a
+ * cliff for the inning.
  */
 export function solveFielding(input: FieldingSolverInput): FieldingSolverResult {
   const { players, positions, innings, genderMinimums } = input;
@@ -124,6 +134,62 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
   }
   const usedPositions = positions.slice(0, fieldSize);
 
+  // Positions where the top two rated players both clear the third by
+  // SPECIALIST_MARGIN — pairs whose simultaneous absence is a real
+  // drop-off, not an incremental one. Deduped, since the same pair can be
+  // 1st/2nd at more than one position.
+  function findSpecialistConflictPairs(): [string, string][] {
+    const pairs: [string, string][] = [];
+    const seen = new Set<string>();
+    for (const position of usedPositions) {
+      const ranked = players
+        .map((p) => ({
+          id: p.id,
+          rating: ratingMap.get(`${p.id}::${position.name}`) ?? DEFAULT_RATING,
+        }))
+        .sort((a, b) => b.rating - a.rating);
+      if (ranked.length < 3) continue;
+
+      const [first, second, third] = ranked;
+      if (Math.min(first.rating, second.rating) - third.rating < SPECIALIST_MARGIN) continue;
+
+      const key = [first.id, second.id].sort().join("::");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push([first.id, second.id]);
+    }
+    return pairs;
+  }
+
+  // Spreads each specialist-conflict pair across opposite halves of the
+  // bench-priority order, so fairness's tie-breaking doesn't accidentally
+  // give both of them their first rest at the same point in the game —
+  // by the time they'd otherwise both be uniquely "last untouched," no
+  // per-inning tie-break has anyone left to swap either of them out for.
+  function separateSpecialistConflicts(
+    baseOrder: FieldingSolverPlayer[],
+  ): FieldingSolverPlayer[] {
+    const result = [...baseOrder];
+    const half = Math.floor(result.length / 2);
+    const indexOf = (id: string) => result.findIndex((p) => p.id === id);
+
+    for (const [aId, bId] of findSpecialistConflictPairs()) {
+      const aFront = indexOf(aId) < half;
+      const bFront = indexOf(bId) < half;
+      if (aFront !== bFront) continue; // already split across halves
+
+      const oppositeHalf = aFront ? result.slice(half) : result.slice(0, half);
+      const swapWith = oppositeHalf.find((p) => p.id !== aId && p.id !== bId);
+      if (!swapWith) continue;
+
+      const bIndex = indexOf(bId);
+      const swapIndex = indexOf(swapWith.id);
+      [result[bIndex], result[swapIndex]] = [result[swapIndex], result[bIndex]];
+    }
+
+    return result;
+  }
+
   const seed =
     input.seed ??
     hashSeed(
@@ -133,7 +199,7 @@ export function solveFielding(input: FieldingSolverInput): FieldingSolverResult 
         .join(","),
     );
   const rng = mulberry32(seed);
-  const order = shuffle(players, rng);
+  const order = separateSpecialistConflicts(shuffle(players, rng));
 
   const totalsByGender = new Map<Gender, number>();
   for (const p of players) {
