@@ -73,10 +73,6 @@ function getHighs() {
   return highsPromise;
 }
 
-function rangeInclusive(start: number, end: number): number[] {
-  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
-}
-
 /**
  * Generates a per-inning fielding rotation — who fields which position,
  * and who's on the bench — by solving the whole game at once as a single
@@ -94,15 +90,9 @@ function rangeInclusive(start: number, end: number): number[] {
  * gender whose roster total can never satisfy it). The objective
  * maximizes total quality (position importance × rating) — this is a
  * genuine global optimum, not a per-inning approximation, verified
- * against brute-force search in the test suite.
- *
- * The last inning of a multi-inning game is the team's extra/tie-breaker
- * slot, which might not even get played. That's handled as a second,
- * lexicographic solve: first maximize quality over the real innings only,
- * then re-solve with that value pinned as a floor and *minimize* the
- * extra inning's quality — so real innings always get the strongest
- * lineup the fairness constraints allow, and the extra inning only ever
- * gets a weaker one when doing so costs the real innings nothing.
+ * against brute-force search in the test suite. Every inning, including
+ * the last one, gets the same treatment — there's no special-casing for
+ * a "tie-breaker" inning.
  */
 export async function solveFielding(input: FieldingSolverInput): Promise<FieldingSolverResult> {
   const { players, positions, innings, genderMinimums } = input;
@@ -164,10 +154,10 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
     return position.importance * rating;
   };
 
-  function objectiveTerms(inningRange: number[]): string {
+  function objectiveTerms(): string {
     const terms: string[] = [];
     for (let pIdx = 0; pIdx < players.length; pIdx++) {
-      for (const inning of inningRange) {
+      for (let inning = 1; inning <= innings; inning++) {
         for (let kIdx = 0; kIdx < usedPositions.length; kIdx++) {
           terms.push(`${qualityOf(pIdx, kIdx)} ${varName(pIdx, inning, kIdx)}`);
         }
@@ -244,33 +234,20 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
     return highs.solve(lpText, { output_flag: false, log_to_console: false, random_seed: 0 });
   }
 
-  async function attemptSolve(includeGenderConstraints: boolean) {
+  function attemptSolve(includeGenderConstraints: boolean) {
     const constraints = includeGenderConstraints
       ? [...baseConstraints, ...genderConstraints]
       : baseConstraints;
-
-    if (innings >= 2) {
-      const realInnings = rangeInclusive(1, innings - 1);
-      const phase1Objective = objectiveTerms(realInnings);
-      const phase1 = solveIlp("Maximize", phase1Objective, constraints);
-      if (phase1.Status !== "Optimal") return phase1;
-
-      const lockedValue = Math.round(phase1.ObjectiveValue);
-      const lockConstraint = `phase1lock: ${phase1Objective} >= ${lockedValue}`;
-      const phase2Objective = objectiveTerms([innings]);
-      return solveIlp("Minimize", phase2Objective, [...constraints, lockConstraint]);
-    }
-
-    const objective = objectiveTerms(rangeInclusive(1, innings));
+    const objective = objectiveTerms();
     return solveIlp("Maximize", objective, constraints);
   }
 
-  let solution = await attemptSolve(true);
+  let solution = attemptSolve(true);
   if (solution.Status !== "Optimal" && genderConstraints.length > 0) {
     warnings.push(
       "Could not satisfy every constraint at once; gender minimums were relaxed for this lineup.",
     );
-    solution = await attemptSolve(false);
+    solution = attemptSolve(false);
   }
 
   if (solution.Status !== "Optimal") {

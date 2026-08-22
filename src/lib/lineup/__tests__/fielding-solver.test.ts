@@ -199,12 +199,7 @@ describe("solveFielding", () => {
       ],
     });
 
-    // Only checked for the 2 real innings: with nobody ever benched here
-    // (2 players, 2 positions), inning 3 is the extra inning and the only
-    // lever left to make it deliberately weaker is position choice itself
-    // — so the solver correctly flips ace/rookie there instead, covered
-    // by the dedicated "prefers a weaker lineup in the extra inning" test.
-    for (const a of assignments.filter((a) => a.inning < 3)) {
+    for (const a of assignments) {
       if (a.playerId === "ace") expect(a.position).toBe("C");
       if (a.playerId === "rookie") expect(a.position).toBe("P");
     }
@@ -225,10 +220,7 @@ describe("solveFielding", () => {
       ratings: [{ playerId: "ace", positionName: "P", rating: 1 }],
     });
 
-    // See the note in the previous test — inning 3 is the extra inning
-    // here and is deliberately weakened, so only the 2 real innings are
-    // checked against the rating-driven expectation.
-    for (const a of assignments.filter((a) => a.inning < 3)) {
+    for (const a of assignments) {
       if (a.playerId === "ace") expect(a.position).toBe("C");
       if (a.playerId === "rookie") expect(a.position).toBe("P");
     }
@@ -295,88 +287,32 @@ describe("solveFielding", () => {
     expect(fieldedIds).toEqual(new Set(["ace", "star"]));
   });
 
-  it("prefers a weaker fairness-tied lineup in the extra (last) inning, not a stronger one", async () => {
-    // 5 same-gender players, bench of 3, 2 innings, importance 3 at both
-    // positions. ace (10/10) + b (8/8) are strictly the best pair for
-    // inning 1 — phase 1 maximizes inning 1 in isolation (inning 2, as
-    // the extra inning, doesn't factor in at all), so {ace,b} always wins
-    // inning 1, structurally excluding ace/b from inning 2 (they'd exceed
-    // their fair share if they fielded twice out of 2 innings). That
-    // leaves inning 2 free to be filled from {c,d,e} however phase 2
-    // likes. Phase 2 doesn't just pick the weakest *pair* among c/d/e —
-    // it minimizes quality over pair *and* position assignment together,
-    // so the true minimum considers both fits of every pair: {c,d} can go
-    // as low as 3*(1+1)=6 (the game's actual minimum, achieved by giving
-    // each of c/d their *worse* position instead of their better one),
-    // beating every other pair/fit combination.
-    const positions: PositionProfile[] = [makePosition("P"), makePosition("C")];
-    const ace: FieldingSolverPlayer = { id: "ace", gender: "M" };
-    const b: FieldingSolverPlayer = { id: "b", gender: "M" };
-    const c: FieldingSolverPlayer = { id: "c", gender: "M" };
-    const d: FieldingSolverPlayer = { id: "d", gender: "M" };
-    const e: FieldingSolverPlayer = { id: "e", gender: "M" };
-
-    const ratings = [
-      { playerId: "ace", positionName: "P", rating: 10 },
-      { playerId: "ace", positionName: "C", rating: 10 },
-      { playerId: "b", positionName: "P", rating: 8 },
-      { playerId: "b", positionName: "C", rating: 8 },
-      { playerId: "c", positionName: "P", rating: 5 },
-      { playerId: "c", positionName: "C", rating: 1 },
-      { playerId: "d", positionName: "P", rating: 1 },
-      { playerId: "d", positionName: "C", rating: 5 },
-      { playerId: "e", positionName: "P", rating: 3 },
-      { playerId: "e", positionName: "C", rating: 3 },
-    ];
-
-    const { assignments } = await solveFielding({
-      players: [ace, b, c, d, e],
-      positions,
-      innings: 2,
-      genderMinimums: [],
-      ratings,
-    });
-
-    const ratingFor = (playerId: string, position: string) =>
-      ratings.find((r) => r.playerId === playerId && r.positionName === position)!.rating;
-    const inning1Fielders = new Set(
-      assignments.filter((a) => a.inning === 1 && a.position !== BENCH).map((a) => a.playerId),
-    );
-    expect(inning1Fielders).toEqual(new Set(["ace", "b"]));
-
-    const inning2Quality = assignments
-      .filter((a) => a.inning === 2 && a.position !== BENCH)
-      .reduce((sum, a) => sum + 3 * ratingFor(a.playerId, a.position), 0);
-    expect(inning2Quality).toBe(6);
-  });
-
-  it("finds the brute-force-optimal total quality across the real innings, even when it means splitting up the two strongest players", async () => {
-    // 6 players, 2 positions, no gender constraint, 3 innings (2 real + 1
-    // extra): fieldSize=2 and fair share = 3*2/6 = 1 exactly, so every
-    // player fields *exactly once* across the whole game — no slack.
-    // Phase 1 (maximize innings 1-2 together) therefore reduces to:
-    // choose which 2 of the 6 players sit out the real innings entirely
-    // (forced into inning 3), then best-fit-pair the remaining 4 across
-    // innings 1 and 2. That's small enough to brute-force exhaustively —
-    // C(6,2)=15 choices of who sits out x 3 ways to pair the remaining 4
-    // — and compare against what the solver actually finds.
+  it("finds the brute-force-optimal total quality across a game, even when it means splitting up the two strongest players", async () => {
+    // 4 players, 2 positions, no gender constraint, 2 innings: with
+    // fieldSize=2 and everyone tied at 0 field-innings going into inning
+    // 1, fairness allows *any* of the C(4,2)=6 possible pairs to field
+    // inning 1 (inning 2 is then forced to the complementary pair). That's
+    // a small enough space to brute-force exhaustively and compare
+    // against what the solver actually finds.
     //
     // Ratings are adversarial to a myopic per-inning optimizer: a and b
     // are each strong at both positions, so pairing them together
-    // maximizes *that inning's own* quality — but a true optimum should
+    // maximizes *inning 1's own* quality — but a true optimum should
     // discover that spreading them across separate innings (each
     // anchoring a weaker partner) beats clustering them together and
     // leaving two weak players stuck with each other.
     const positions: PositionProfile[] = [makePosition("P", { importance: 1 }), makePosition("C", { importance: 1 })];
-    const ids = ["a", "b", "c", "d", "e", "f"];
-    const players: FieldingSolverPlayer[] = ids.map((id) => ({ id, gender: "M" }));
+    const players: FieldingSolverPlayer[] = [
+      { id: "a", gender: "M" },
+      { id: "b", gender: "M" },
+      { id: "c", gender: "M" },
+      { id: "d", gender: "M" },
+    ];
     const ratingTable: Record<string, { P: number; C: number }> = {
       a: { P: 8, C: 7 },
       b: { P: 7, C: 6 },
       c: { P: 6, C: 6 },
       d: { P: 6, C: 6 },
-      e: { P: 6, C: 6 },
-      f: { P: 6, C: 6 },
     };
     const ratings = Object.entries(ratingTable).flatMap(([playerId, r]) => [
       { playerId, positionName: "P", rating: r.P },
@@ -386,51 +322,41 @@ describe("solveFielding", () => {
     const bestPairQuality = (p1: string, p2: string) =>
       Math.max(ratingTable[p1].P + ratingTable[p2].C, ratingTable[p2].P + ratingTable[p1].C);
 
+    const ids = players.map((p) => p.id);
     let bruteForceMax = -Infinity;
-    for (let ei = 0; ei < ids.length; ei++) {
-      for (let ej = ei + 1; ej < ids.length; ej++) {
-        const excluded = new Set([ids[ei], ids[ej]]);
-        const remaining = ids.filter((id) => !excluded.has(id));
-        const [r0, r1, r2, r3] = remaining;
-        const partitions: [string, string][][] = [
-          [[r0, r1], [r2, r3]],
-          [[r0, r2], [r1, r3]],
-          [[r0, r3], [r1, r2]],
-        ];
-        for (const [pairA, pairB] of partitions) {
-          const total = bestPairQuality(...pairA) + bestPairQuality(...pairB);
-          bruteForceMax = Math.max(bruteForceMax, total);
-        }
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const inning1 = [ids[i], ids[j]];
+        const inning2 = ids.filter((id) => !inning1.includes(id));
+        const total = bestPairQuality(inning1[0], inning1[1]) + bestPairQuality(inning2[0], inning2[1]);
+        bruteForceMax = Math.max(bruteForceMax, total);
       }
     }
 
     const { assignments } = await solveFielding({
       players,
       positions,
-      innings: 3,
+      innings: 2,
       genderMinimums: [],
       ratings,
     });
 
-    let realInningsQuality = 0;
+    let totalQuality = 0;
     for (const a of assignments) {
-      if (a.inning === 3 || a.position === BENCH) continue;
-      realInningsQuality += ratingTable[a.playerId][a.position as "P" | "C"];
+      if (a.position === BENCH) continue;
+      totalQuality += ratingTable[a.playerId][a.position as "P" | "C"];
     }
-    expect(realInningsQuality).toBe(bruteForceMax);
+    expect(totalQuality).toBe(bruteForceMax);
   });
 
-  it("never benches two position specialists in the same real inning when a fair alternative exists", async () => {
+  it("never benches two position specialists in the same inning when a fair alternative exists", async () => {
     // 2 specialists (s1 rated 10, s2 rated 8 at "P") among 6 generic
     // players (all rated 5 everywhere, no reason to prefer any one of
-    // them over another), 4 positions -> bench of 4 out of 8, 7 innings
-    // (7 is the extra/tie-breaker slot, excluded below since the
-    // "prefer a weaker fairness-tied lineup" behavior can legitimately
-    // put both specialists there if that's genuinely the weakest option).
+    // them over another), 4 positions -> bench of 4 out of 8, 7 innings.
     // Because the 6 generic players are fully interchangeable, there's
     // always a fairness-tied way to keep s1 and s2 apart without costing
-    // any real inning any quality — so a true optimum should never pay
-    // that price.
+    // any inning any quality — so a true optimum should never pay that
+    // price, in any inning.
     const positions: PositionProfile[] = [
       makePosition("P"),
       makePosition("X"),
@@ -463,7 +389,7 @@ describe("solveFielding", () => {
     const benchInningsFor = (playerId: string) =>
       new Set(
         assignments
-          .filter((a) => a.playerId === playerId && a.position === BENCH && a.inning < 7)
+          .filter((a) => a.playerId === playerId && a.position === BENCH)
           .map((a) => a.inning),
       );
     const s1BenchInnings = benchInningsFor("s1");
