@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -264,4 +265,11 @@ export async function setFieldingAssignment(
   });
 
   revalidatePath(`/games/${gameId}`);
+}
+
+export async function deleteGame(gameId: string) {
+  await requireUser();
+  await db.delete(games).where(eq(games.id, gameId));
+  revalidatePath("/games");
+  redirect("/games");
 }

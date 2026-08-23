@@ -10,6 +10,7 @@ import { GenerateLineupForm } from "./generate-lineup-form";
 import { BattingOrderList } from "./batting-order-list";
 import { FieldingGrid } from "./fielding-grid";
 import { GenerateSheetButton } from "./generate-sheet-button";
+import { DeleteGameButton } from "./delete-game-button";
 
 export default async function GamePage(props: PageProps<"/games/[id]">) {
   const { id } = await props.params;
@@ -29,14 +30,17 @@ export default async function GamePage(props: PageProps<"/games/[id]">) {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold">
-          {game.opponent ? `vs ${game.opponent}` : "Game"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {game.date} · {season.name}
-          {game.location ? ` · ${game.location}` : ""} · {game.inningsPlanned} innings
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            {game.opponent ? `vs ${game.opponent}` : "Game"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {game.date} · {season.name}
+            {game.location ? ` · ${game.location}` : ""} · {game.inningsPlanned} innings
+          </p>
+        </div>
+        <DeleteGameButton gameId={id} />
       </div>
 
       {!leagueRules ? (
