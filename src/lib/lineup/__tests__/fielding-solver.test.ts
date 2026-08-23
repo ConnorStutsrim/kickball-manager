@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BENCH,
+  computeGenderShortfalls,
   solveFielding,
   type FieldingSolverPlayer,
   type GenderMinimum,
@@ -32,6 +33,23 @@ const POSITIONS: PositionProfile[] = [
 const STANDARD_MINIMUMS: GenderMinimum[] = [
   { gender: "M", min: 4 },
   { gender: "F", min: 4 },
+];
+
+// Mirrors the real league's actual position names — unlike POSITIONS above,
+// this includes "Float" and "Outfield 4" by name, which is what the
+// shorthanded-gender degradation logic matches against.
+const REAL_POSITIONS: PositionProfile[] = [
+  makePosition("Pitcher"),
+  makePosition("Catcher"),
+  makePosition("Monster"),
+  makePosition("1st"),
+  makePosition("2nd"),
+  makePosition("3rd"),
+  makePosition("Float"),
+  makePosition("Outfield 1"),
+  makePosition("Outfield 2"),
+  makePosition("Outfield 3"),
+  makePosition("Outfield 4"),
 ];
 
 function makeRoster(mCount: number, fCount: number): FieldingSolverPlayer[] {
@@ -155,16 +173,74 @@ describe("solveFielding", () => {
     expect(inning1.every((a) => a.position !== BENCH)).toBe(true);
   });
 
-  it("warns instead of throwing when a gender's total is below the minimum", async () => {
-    const players = makeRoster(2, 9); // only 2 men, minimum requires 4
-    const { warnings } = await solveFielding({
+  describe("computeGenderShortfalls", () => {
+    it("reports 0 shortfall when a gender's total meets or exceeds the minimum", () => {
+      const players = makeRoster(4, 9);
+      const shortfalls = computeGenderShortfalls(players, STANDARD_MINIMUMS);
+      expect(shortfalls.find((s) => s.gender === "M")).toMatchObject({ total: 4, min: 4, shortfall: 0 });
+    });
+
+    it("reports min minus total as the shortfall otherwise, independent per gender", () => {
+      const players = makeRoster(3, 2);
+      const shortfalls = computeGenderShortfalls(players, STANDARD_MINIMUMS);
+      expect(shortfalls.find((s) => s.gender === "M")).toMatchObject({ total: 3, min: 4, shortfall: 1 });
+      expect(shortfalls.find((s) => s.gender === "F")).toMatchObject({ total: 2, min: 4, shortfall: 2 });
+    });
+  });
+
+  it("plays without Float when a gender is exactly 1 short of the minimum", async () => {
+    const players = makeRoster(3, 9); // only 3 men, minimum requires 4 -> 1 short
+    const { assignments, warnings } = await solveFielding({
       players,
-      positions: POSITIONS,
-      innings: 2,
+      positions: REAL_POSITIONS,
+      innings: 3,
       genderMinimums: STANDARD_MINIMUMS,
     });
 
-    expect(warnings.some((w) => w.includes("gender M"))).toBe(true);
+    expect(warnings.some((w) => w.includes("shorthanded"))).toBe(true);
+    expect(assignments.some((a) => a.position === "Float")).toBe(false);
+    // Outfield 4 isn't dropped until 2 short — still available here.
+    expect(assignments.some((a) => a.position === "Outfield 4")).toBe(true);
+
+    // All 3 men are short-handed, so all 3 field every inning, never benched.
+    for (const p of players.filter((p) => p.gender === "M")) {
+      const benchedInnings = assignments.filter(
+        (a) => a.playerId === p.id && a.position === BENCH,
+      );
+      expect(benchedInnings).toEqual([]);
+    }
+  });
+
+  it("also plays without Outfield 4 when a gender is 2 short of the minimum", async () => {
+    const players = makeRoster(2, 9); // only 2 men, minimum requires 4 -> 2 short
+    const { assignments, warnings } = await solveFielding({
+      players,
+      positions: REAL_POSITIONS,
+      innings: 3,
+      genderMinimums: STANDARD_MINIMUMS,
+    });
+
+    expect(warnings.some((w) => w.includes("shorthanded"))).toBe(true);
+    expect(assignments.some((a) => a.position === "Float")).toBe(false);
+    expect(assignments.some((a) => a.position === "Outfield 4")).toBe(false);
+
+    for (const p of players.filter((p) => p.gender === "M")) {
+      const benchedInnings = assignments.filter(
+        (a) => a.playerId === p.id && a.position === BENCH,
+      );
+      expect(benchedInnings).toEqual([]);
+    }
+
+    // The non-short gender still rotates fairly among themselves.
+    const benchCounts = new Map<string, number>();
+    for (const p of players.filter((p) => p.gender === "F")) benchCounts.set(p.id, 0);
+    for (const a of assignments) {
+      if (a.position === BENCH && benchCounts.has(a.playerId)) {
+        benchCounts.set(a.playerId, benchCounts.get(a.playerId)! + 1);
+      }
+    }
+    const counts = [...benchCounts.values()];
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
   });
 
   it("is deterministic", async () => {

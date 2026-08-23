@@ -11,7 +11,7 @@ import {
   positions,
 } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
-import { solveFielding } from "@/lib/lineup/fielding-solver";
+import { computeGenderShortfalls, solveFielding } from "@/lib/lineup/fielding-solver";
 import { buildBattingOrder } from "@/lib/lineup/batting-order";
 import { computeBattingStats } from "@/lib/stats/batting-stats";
 import { blendRating, statToRating } from "@/lib/stats/stat-scaling";
@@ -55,6 +55,24 @@ export async function generateLineup(
   const roster = allPlayers.filter((p) => presentIds.includes(p.id));
   if (roster.length === 0) {
     return { error: "Select at least one player who is present." };
+  }
+
+  // A gender more than 2 short of the league minimum can't play without
+  // dropping more positions than the league's shorthanded rule allows for
+  // (Float, then Outfield 4) — block rather than silently degrading further.
+  const shortfalls = computeGenderShortfalls(
+    roster.map((p) => ({ id: p.id, gender: p.gender })),
+    rules.genderMinimums,
+  );
+  const tooShort = shortfalls.find((s) => s.shortfall >= 3);
+  if (tooShort) {
+    const genderWord =
+      tooShort.gender === "M" ? (tooShort.total === 1 ? "man" : "men") : tooShort.total === 1 ? "woman" : "women";
+    return {
+      error: `Only ${tooShort.total} ${genderWord} are present; at least ${
+        tooShort.min - 2
+      } are needed to generate a lineup.`,
+    };
   }
 
   const positionNameById = new Map(positionProfiles.map((p) => [p.id, p.name]));
