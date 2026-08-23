@@ -272,5 +272,6 @@ export async function deleteGame(gameId: string) {
   await db.delete(games).where(eq(games.id, gameId));
   revalidatePath("/games");
   revalidatePath(`/games/${gameId}`);
+  revalidatePath(`/games/${gameId}/live`);
   redirect("/games");
 }
