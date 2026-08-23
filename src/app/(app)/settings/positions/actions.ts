@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { positions } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
-const weightSchema = z.coerce.number().int().min(0).max(5);
+const weightSchema = z.coerce.number().int().min(1).max(10);
 
 export type PositionsFormState = { error?: string };
 

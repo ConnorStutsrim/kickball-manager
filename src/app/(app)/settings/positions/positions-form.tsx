@@ -30,7 +30,7 @@ export function PositionsForm({ positions }: { positions: Position[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Position</TableHead>
-                <TableHead className="w-20">Importance</TableHead>
+                <TableHead className="w-20">Importance (1-10)</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -43,8 +43,8 @@ export function PositionsForm({ positions }: { positions: Position[] }) {
                   <TableCell>
                     <Input
                       type="number"
-                      min={0}
-                      max={5}
+                      min={1}
+                      max={10}
                       name={`importance-${position.id}`}
                       defaultValue={position.importance}
                     />
