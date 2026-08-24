@@ -21,14 +21,16 @@ REPO_ROOT="$(pwd)"
 
 # `pgrep -f "next dev"` alone would match any Next.js dev server on the
 # machine, including unrelated ones from other repos — only kill processes
-# actually running from this repo's directory (checked via /proc, so this
-# only filters on Linux; elsewhere every candidate is kept as a fallback).
+# actually running from this repo's directory, verified via /proc (Linux
+# only). Fails closed: a PID is excluded whenever its cwd can't be
+# positively confirmed to be this repo — an unreadable /proc/$pid/cwd
+# (e.g. a process owned by another user) or no /proc at all (e.g. macOS)
+# must never fall back to "include it anyway", since that's exactly the
+# unrelated-process-killing risk this check exists to prevent.
 PIDS=""
 for pid in $(pgrep -f "next dev" || true); do
-  if [ -r "/proc/$pid/cwd" ]; then
-    cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
-    [ "$cwd" = "$REPO_ROOT" ] && PIDS="$PIDS $pid"
-  else
+  cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+  if [ -n "$cwd" ] && [ "$cwd" = "$REPO_ROOT" ]; then
     PIDS="$PIDS $pid"
   fi
 done
