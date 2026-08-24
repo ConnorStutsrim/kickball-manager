@@ -80,9 +80,11 @@ export function PositionCoverageForm({
                             type="number"
                             min={0}
                             max={10}
+                            step={1}
                             className="w-14"
                             name={`weight-${helper.id}-${helped.id}`}
                             defaultValue={weight}
+                            aria-label={`${helper.name} shoring up ${helped.name} weight`}
                           />
                         </TableCell>
                       );
