@@ -85,6 +85,28 @@ export const playerPositionRatings = pgTable(
   (table) => [unique().on(table.playerId, table.positionId)],
 ).enableRLS();
 
+// How much one position ("helper") can cover for a weak neighbor ("helped")
+// in the fielding solver's optimization — e.g. a strong middle left fielder
+// covering ground for a weaker left fielder. Directional (helper->helped is
+// independent of helped->helper) and 0-10, not this app's usual 1-10: 0 ("no
+// coverage relationship") is the real, common default for most position
+// pairs, unlike other rating fields where every value matters at least a
+// little. Every ordered pair of distinct positions gets a row, seeded at 0.
+export const positionShoreUpWeights = pgTable(
+  "position_shore_up_weights",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    helperPositionId: uuid("helper_position_id")
+      .notNull()
+      .references(() => positions.id, { onDelete: "cascade" }),
+    helpedPositionId: uuid("helped_position_id")
+      .notNull()
+      .references(() => positions.id, { onDelete: "cascade" }),
+    weight: smallint("weight").notNull(),
+  },
+  (table) => [unique().on(table.helperPositionId, table.helpedPositionId)],
+).enableRLS();
+
 // One row per batting-order-slot archetype (Leadoff, Table Setter, Balanced,
 // Cleanup, RBI): how much each batting skill axis predicts fit for that
 // archetype. Slot number -> archetype name is a fixed mapping in code

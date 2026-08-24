@@ -64,6 +64,13 @@
       "when": 1787408981741,
       "tag": "0008_fielding_ratings_rescale",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787529259637,
+      "tag": "0009_silly_deathstrike",
+      "breakpoints": true
     }
   ]
 }

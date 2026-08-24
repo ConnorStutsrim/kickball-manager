@@ -6,6 +6,7 @@ import {
   type FieldingSolverPlayer,
   type GenderMinimum,
   type PositionProfile,
+  type PositionShoreUpWeight,
 } from "../fielding-solver";
 
 function makePosition(name: string, overrides: Partial<Omit<PositionProfile, "name">> = {}): PositionProfile {
@@ -472,5 +473,231 @@ describe("solveFielding", () => {
     const s2BenchInnings = benchInningsFor("s2");
     const overlap = [...s1BenchInnings].filter((inning) => s2BenchInnings.has(inning));
     expect(overlap).toEqual([]);
+  });
+
+  describe("cross-position coverage (shoreUpWeights)", () => {
+    // 3 players, 2 positions (H = "helper", L = "helped"), bench of 1, 1
+    // inning, no gender constraint. importance overridden to 1
+    // (makePosition defaults to 3) so the coefficient math below (bonus =
+    // weight * importance(helped) / 10 * gap) reduces to bonus =
+    // weight/10 * gap, keeping the by-hand numbers tractable.
+    //
+    // The bonus is scaled by the *helped* position's own importance so
+    // that, for a fixed helper, raising the helped fielder's own rating
+    // is never worse than lowering it (see fielding-solver.ts) — which
+    // means, provably, a coverage bonus can never make the solver prefer
+    // a *weaker* helped-fielder over a stronger one for the same helper.
+    // What it *can* still do is change which player is worth using as
+    // helper in the first place, trading away a slightly-better raw fit
+    // at the helper position for a much bigger exploitable gap. That's
+    // what "shifts the optimal assignment" below demonstrates.
+    const positions: PositionProfile[] = [
+      makePosition("H", { importance: 1 }),
+      makePosition("L", { importance: 1 }),
+    ];
+
+    const noWeightPlayers: FieldingSolverPlayer[] = [
+      { id: "A", gender: "M" },
+      { id: "B", gender: "M" },
+      { id: "C", gender: "M" },
+    ];
+    const noWeightRatings = [
+      { playerId: "A", positionName: "H", rating: 10 },
+      { playerId: "A", positionName: "L", rating: 5 },
+      { playerId: "B", positionName: "H", rating: 6 },
+      { playerId: "B", positionName: "L", rating: 6 },
+      { playerId: "C", positionName: "H", rating: 5 },
+      { playerId: "C", positionName: "L", rating: 9 },
+    ];
+
+    async function fieldedPair(
+      players: FieldingSolverPlayer[],
+      ratings: { playerId: string; positionName: string; rating: number }[],
+      shoreUpWeights: PositionShoreUpWeight[],
+    ) {
+      const { assignments } = await solveFielding({
+        players,
+        positions,
+        innings: 1,
+        genderMinimums: [],
+        ratings,
+        shoreUpWeights,
+      });
+      return {
+        atH: assignments.find((a) => a.position === "H")!.playerId,
+        atL: assignments.find((a) => a.position === "L")!.playerId,
+      };
+    }
+
+    it("has no effect when no weight is configured (backward compatible)", async () => {
+      // Pure best-fit with no bonus at all: {A->H, C->L} (raw 10+9=19,
+      // beating every other ordered pair).
+      expect(await fieldedPair(noWeightPlayers, noWeightRatings, [])).toEqual({
+        atH: "A",
+        atL: "C",
+      });
+    });
+
+    it("has no effect when the configured weight is 0", async () => {
+      const pair = await fieldedPair(noWeightPlayers, noWeightRatings, [
+        { helperPositionName: "H", helpedPositionName: "L", weight: 0 },
+      ]);
+      expect(pair).toEqual({ atH: "A", atL: "C" });
+    });
+
+    // A: H=8, L=7; B: H=6, L=2; C: H=3, L=3.
+    // Raw best fit (weight 0): {H:B, L:A} = 6+7 = 13 (B is a fine helper
+    // fit, and A is the best available L partner for B).
+    // At weight 5, the H->L bonus (coeff = 5/10 = 0.5) rewards A-as-helper
+    // instead: A outrates C at H by 5 (8-3), worth a bonus of 0.5*5=2.5 on
+    // top of A's raw 8+3=11, totaling 13.5 — narrowly beating {H:B,L:A}'s
+    // unchanged 13 (B's own gap against A, 6 vs 7, is already negative,
+    // so B's total never grows with weight). Every other ordered pair
+    // stays below 13.5 too (verified by brute force below, not just this
+    // one comparison).
+    const shiftPlayers: FieldingSolverPlayer[] = [
+      { id: "A", gender: "M" },
+      { id: "B", gender: "M" },
+      { id: "C", gender: "M" },
+    ];
+    const shiftRatings = [
+      { playerId: "A", positionName: "H", rating: 8 },
+      { playerId: "A", positionName: "L", rating: 7 },
+      { playerId: "B", positionName: "H", rating: 6 },
+      { playerId: "B", positionName: "L", rating: 2 },
+      { playerId: "C", positionName: "H", rating: 3 },
+      { playerId: "C", positionName: "L", rating: 3 },
+    ];
+
+    function bruteForceBest(
+      ratings: typeof shiftRatings,
+      helperPositionName: "H" | "L",
+      helpedPositionName: "H" | "L",
+      weight: number,
+    ) {
+      const ratingOf = (playerId: string, positionName: string) =>
+        ratings.find((r) => r.playerId === playerId && r.positionName === positionName)!.rating;
+      const ids = [...new Set(ratings.map((r) => r.playerId))];
+      let best = -Infinity;
+      let bestPair = { atH: "", atL: "" };
+      for (const h of ids) {
+        for (const l of ids) {
+          if (h === l) continue;
+          const raw = ratingOf(h, "H") + ratingOf(l, "L");
+          const fielderAtHelper = helperPositionName === "H" ? h : l;
+          const fielderAtHelped = helpedPositionName === "H" ? h : l;
+          const gap = Math.max(
+            0,
+            ratingOf(fielderAtHelper, helperPositionName) - ratingOf(fielderAtHelped, helpedPositionName),
+          );
+          // importance(helped) = 1 throughout this describe block, so the
+          // coefficient reduces to weight / 10.
+          const total = raw + (weight / 10) * gap;
+          if (total > best) {
+            best = total;
+            bestPair = { atH: h, atL: l };
+          }
+        }
+      }
+      return { ...bestPair, total: best };
+    }
+
+    it("shifts the optimal assignment once a positive weight makes a different helper worth it", async () => {
+      const baseline = bruteForceBest(shiftRatings, "H", "L", 0);
+      expect(baseline).toMatchObject({ atH: "B", atL: "A" });
+
+      const withBonus = bruteForceBest(shiftRatings, "H", "L", 5);
+      // Confirms the brute force itself picked a genuinely different pair
+      // than the no-bonus case, not just a higher score for the same one.
+      expect(withBonus).toMatchObject({ atH: "A", atL: "C" });
+      expect(withBonus.total).toBeGreaterThan(baseline.total);
+
+      const pair = await fieldedPair(shiftPlayers, shiftRatings, [
+        { helperPositionName: "H", helpedPositionName: "L", weight: 5 },
+      ]);
+      expect(pair).toEqual({ atH: withBonus.atH, atL: withBonus.atL });
+    });
+
+    // Same shape as above, mirrored (each player's H/L ratings swapped),
+    // so a weight configured L->H produces an analogous flip that H->L on
+    // this same roster does *not* produce — proving direction matters,
+    // not just magnitude.
+    const directionalPlayers: FieldingSolverPlayer[] = [
+      { id: "A", gender: "M" },
+      { id: "B", gender: "M" },
+      { id: "C", gender: "M" },
+    ];
+    const directionalRatings = [
+      { playerId: "A", positionName: "H", rating: 7 },
+      { playerId: "A", positionName: "L", rating: 8 },
+      { playerId: "B", positionName: "H", rating: 2 },
+      { playerId: "B", positionName: "L", rating: 6 },
+      { playerId: "C", positionName: "H", rating: 3 },
+      { playerId: "C", positionName: "L", rating: 3 },
+    ];
+
+    it("is directional — the same weight applied L->H instead of H->L finds a different optimum", async () => {
+      const lToH = bruteForceBest(directionalRatings, "L", "H", 5);
+      const hToL = bruteForceBest(directionalRatings, "H", "L", 5);
+      // Confirms the two directions genuinely disagree on this roster, not
+      // just that both happen to compute some bonus.
+      expect(lToH).not.toMatchObject({ atH: hToL.atH, atL: hToL.atL });
+
+      const pairLToH = await fieldedPair(directionalPlayers, directionalRatings, [
+        { helperPositionName: "L", helpedPositionName: "H", weight: 5 },
+      ]);
+      expect(pairLToH).toEqual({ atH: lToH.atH, atL: lToH.atL });
+
+      const pairHToL = await fieldedPair(directionalPlayers, directionalRatings, [
+        { helperPositionName: "H", helpedPositionName: "L", weight: 5 },
+      ]);
+      expect(pairHToL).toEqual({ atH: hToL.atH, atL: hToL.atL });
+    });
+
+    // Separate 3-position scenario (H1, H2, L; bench of 1; 4 players): two
+    // *simultaneous* helpers both targeting L. P1/P2 are clearly the best
+    // fits for H1/H2 regardless of who plays L (rated 10 there, everyone
+    // else defaults to 5), so the only real question is whether P3 (a
+    // weak L fielder, rating 3) or P4 (a better one, rating 6) plays L —
+    // and the guarantee this fix establishes is that the answer can never
+    // flip toward the weaker one, no matter how many helpers are active
+    // at once. Both H1->L and H2->L are configured at weight 8 (well past
+    // what a single unshared pair could safely carry against L's
+    // importance of 1) specifically to stress-test that the per-pair /
+    // helper-count division still holds the line when summed.
+    it("never prefers a weaker helped fielder even with multiple simultaneous helpers", async () => {
+      const multiHelperPositions: PositionProfile[] = [
+        makePosition("H1", { importance: 1 }),
+        makePosition("H2", { importance: 1 }),
+        makePosition("L", { importance: 1 }),
+      ];
+      const multiHelperPlayers: FieldingSolverPlayer[] = [
+        { id: "P1", gender: "M" },
+        { id: "P2", gender: "M" },
+        { id: "P3", gender: "M" },
+        { id: "P4", gender: "M" },
+      ];
+      const multiHelperRatings = [
+        { playerId: "P1", positionName: "H1", rating: 10 },
+        { playerId: "P2", positionName: "H2", rating: 10 },
+        { playerId: "P3", positionName: "L", rating: 3 },
+        { playerId: "P4", positionName: "L", rating: 6 },
+      ];
+
+      const { assignments } = await solveFielding({
+        players: multiHelperPlayers,
+        positions: multiHelperPositions,
+        innings: 1,
+        genderMinimums: [],
+        ratings: multiHelperRatings,
+        shoreUpWeights: [
+          { helperPositionName: "H1", helpedPositionName: "L", weight: 8 },
+          { helperPositionName: "H2", helpedPositionName: "L", weight: 8 },
+        ],
+      });
+
+      const atL = assignments.find((a) => a.position === "L")!.playerId;
+      expect(atL).toBe("P4");
+    });
   });
 });

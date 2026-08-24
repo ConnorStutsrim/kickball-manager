@@ -21,6 +21,7 @@ import {
   getSeasonPlateAppearances,
 } from "@/lib/data/season-batting-stats";
 import { getAllPlayerPositionRatings } from "@/lib/data/position-ratings";
+import { getPositionShoreUpWeights } from "@/lib/data/position-shore-up-weights";
 
 export type GenerateLineupState = { error?: string; warnings?: string[] };
 
@@ -36,14 +37,16 @@ export async function generateLineup(
     return { error: "Select at least one player who is present." };
   }
 
-  const [game, rules, positionProfiles, archetypes, allPlayers, ratingRows] = await Promise.all([
-    db.query.games.findFirst({ where: eq(games.id, gameId) }),
-    db.query.leagueRules.findFirst(),
-    db.query.positions.findMany({ orderBy: [asc(positions.displayOrder)] }),
-    db.query.battingSlotArchetypes.findMany(),
-    db.query.players.findMany(),
-    getAllPlayerPositionRatings(),
-  ]);
+  const [game, rules, positionProfiles, archetypes, allPlayers, ratingRows, shoreUpRows] =
+    await Promise.all([
+      db.query.games.findFirst({ where: eq(games.id, gameId) }),
+      db.query.leagueRules.findFirst(),
+      db.query.positions.findMany({ orderBy: [asc(positions.displayOrder)] }),
+      db.query.battingSlotArchetypes.findMany(),
+      db.query.players.findMany(),
+      getAllPlayerPositionRatings(),
+      getPositionShoreUpWeights(),
+    ]);
 
   if (!game) return { error: "Game not found." };
   if (!rules) {
@@ -82,6 +85,11 @@ export async function generateLineup(
     positionName: positionNameById.get(r.positionId)!,
     rating: r.rating,
   }));
+  const shoreUpWeights = shoreUpRows.map((r) => ({
+    helperPositionName: positionNameById.get(r.helperPositionId)!,
+    helpedPositionName: positionNameById.get(r.helpedPositionId)!,
+    weight: r.weight,
+  }));
 
   const fieldingResult = await solveFielding({
     players: roster.map((p) => ({
@@ -92,6 +100,7 @@ export async function generateLineup(
     innings: game.inningsPlanned,
     genderMinimums: rules.genderMinimums,
     ratings,
+    shoreUpWeights,
   });
 
   // Blend each player's manual scouting ratings with real season stats
