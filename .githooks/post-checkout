@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Restarts a running dev server (with a clean .next) after switching
+# branches — see scripts/restart-dev-server.sh and issue #15. Git passes
+# $3 = 1 for an actual branch checkout, 0 for a plain file checkout
+# (e.g. `git checkout -- some-file.ts`); only the former needs this.
+flag="${3:-0}"
+if [ "$flag" != "1" ]; then
+  exit 0
+fi
+
+dir="$(cd "$(dirname "$0")/.." && pwd)"
+"$dir/scripts/restart-dev-server.sh" || true

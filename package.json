@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true",
     "dev": "next dev",
+    "dev:restart": "bash scripts/restart-dev-server.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

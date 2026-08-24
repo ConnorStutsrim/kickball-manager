@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Restarts a running dev server (with a clean .next) after a merge/pull —
+# see scripts/restart-dev-server.sh and issue #15.
+dir="$(cd "$(dirname "$0")/.." && pwd)"
+"$dir/scripts/restart-dev-server.sh" || true
