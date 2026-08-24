@@ -152,10 +152,15 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
     ratingMap.set(`${r.playerId}::${r.positionName}`, r.rating);
   }
 
+  // Clamped to the documented 0-10 range: the objective coefficient built
+  // from this weight (see below) is only guaranteed to never exceed the
+  // helped position's own importance — the property that rules out ever
+  // preferring a weaker helped fielder — when weight stays within 0-10.
   const shoreUpMap = new Map<string, number>();
   for (const s of input.shoreUpWeights ?? []) {
-    if (s.weight > 0) {
-      shoreUpMap.set(`${s.helperPositionName}::${s.helpedPositionName}`, s.weight);
+    const weight = Math.min(10, Math.max(0, s.weight));
+    if (weight > 0) {
+      shoreUpMap.set(`${s.helperPositionName}::${s.helpedPositionName}`, weight);
     }
   }
 
