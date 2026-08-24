@@ -11,6 +11,7 @@ import {
   LogOut,
   Shapes,
   Users,
+  Waypoints,
 } from "lucide-react";
 import {
   Sidebar,
@@ -36,6 +37,7 @@ const MAIN_LINKS = [
 const SETTINGS_LINKS = [
   { href: "/settings/league-rules", label: "League rules", icon: ClipboardList },
   { href: "/settings/positions", label: "Positions", icon: Shapes },
+  { href: "/settings/position-coverage", label: "Position coverage", icon: Waypoints },
   { href: "/settings/batting-slots", label: "Batting slots", icon: ListOrdered },
   { href: "/settings/google", label: "Google Sheets", icon: FileSpreadsheet },
 ];
