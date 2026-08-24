@@ -14,4 +14,4 @@ if git config --get core.hooksPath >/dev/null 2>&1; then
   exit 0
 fi
 
-git config core.hooksPath .githooks
+git config --local core.hooksPath .githooks

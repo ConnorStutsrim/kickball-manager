@@ -81,5 +81,8 @@ rm -rf .next
 # nohup already detaches this from the shell/terminal — disown isn't
 # needed on top of it, and can itself fail under `set -e` in a
 # non-interactive shell (git hooks included) where job control is off.
-nohup node_modules/.bin/next dev >/tmp/kbm-dev.log 2>&1 </dev/null &
+# Launched via `npm run dev` (not a hardcoded `next dev` invocation) so
+# this can never drift from whatever the canonical dev script actually
+# does — e.g. if it ever grows flags or env setup in package.json.
+nohup npm run dev >/tmp/kbm-dev.log 2>&1 </dev/null &
 echo "[restart-dev-server] dev server restarting (log: /tmp/kbm-dev.log)"
