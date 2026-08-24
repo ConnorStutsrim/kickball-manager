@@ -223,14 +223,33 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
 
   // Cross-position coverage: when a "helper" position's assigned player
   // rates higher (raw skill) than a "helped" neighbor's assigned player,
-  // some of that gap becomes a bonus — e.g. a strong middle left fielder
-  // covering ground for a weaker left fielder. This couples two
+  // the helped position's *effective* rating gets pulled up toward the
+  // helper's rating — weight 0 leaves it at the helped fielder's own
+  // rating, weight 10 brings it all the way up to the helper's rating,
+  // and values between are a linear interpolation. This couples two
   // (player, position) decisions together, which breaks the plain linear
   // assignment structure everything else here relies on.
   //
-  // An earlier version of this modeled the coupling directly — one binary
-  // variable per (helper, helped, specific pair of players, inning) — but
-  // that scales with players^2 and gives branch-and-bound a very weak
+  // Critically, the pulled-up amount is scaled by the *helped* position's
+  // own importance, the same way every rating already is elsewhere in this
+  // objective (quality = importance x rating) — not by the helper's. An
+  // earlier version scaled the bonus by weight alone, which meant a
+  // configured weight bigger than the helped position's importance made
+  // the solver *prefer* a weaker fielder there (a bigger gap earned a
+  // bigger reward than the raw quality lost), the opposite of the intent.
+  // Scaling by the helped position's own importance instead means the
+  // most a single pair can ever be worth is importance(helped) x gap, so
+  // raising the helped fielder's own rating is never worse than lowering
+  // it — the model can no longer be made to actively seek out weakness
+  // just to farm a bigger gap. (Multiple simultaneous helpers targeting
+  // the same helped position still sum, so a helped position whose
+  // *combined* incoming weight exceeds 10 can still see a smaller residual
+  // version of the same pull — worth keeping in mind when configuring more
+  // than one helper for the same position.)
+  //
+  // An earlier version modeled the coupling directly — one binary variable
+  // per (helper, helped, specific pair of players, inning) — but that
+  // scales with players^2 and gives branch-and-bound a very weak
   // relaxation to work with; verified against realistic data (14 players,
   // 8 configured pairs) it didn't finish solving within 2 minutes. This
   // version scales with position-pairs x innings instead: "rating at the
@@ -245,10 +264,13 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
   //   g <= My
   // which forces g = gap when y=1 (the gap is non-negative) and g = 0
   // when y=0, with M = 9 (the largest possible gap on the 1-10 rating
-  // scale). Verified against the same realistic data this solves to a
-  // proven optimum, just slower (1-25s observed, instead of ~30ms) and
-  // meaningfully less predictable than the rest of this solver — accepted
-  // as a real cost of keeping this fully exact rather than a heuristic.
+  // scale) — the objective coefficient on g is then
+  // importance(helped) x weight / 10, so g's own units stay in raw rating
+  // points regardless. Verified against the same realistic data this
+  // solves to a proven optimum, just slower (1-25s observed, instead of
+  // ~30ms) and meaningfully less predictable than the rest of this solver
+  // — accepted as a real cost of keeping this fully exact rather than a
+  // heuristic.
   const SHORE_UP_BIG_M = 9;
   const shoreUpBinaryNames: string[] = [];
   const shoreUpContinuousNames: string[] = [];
@@ -284,7 +306,11 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
           `${g}_le_gapM: ${g} + ${gapExpr} + ${SHORE_UP_BIG_M} ${y} <= ${SHORE_UP_BIG_M}`,
         );
         shoreUpConstraints.push(`${g}_le_My: ${g} - ${SHORE_UP_BIG_M} ${y} <= 0`);
-        shoreUpObjectiveTerms.push(`${weight} ${g}`);
+        // Scaled by the helped position's own importance (not the raw
+        // weight alone) so this can never be worth more than raising the
+        // helped fielder's own rating would be — see the comment above.
+        const coefficient = (weight * usedPositions[helpedKIdx].importance) / 10;
+        shoreUpObjectiveTerms.push(`${coefficient} ${g}`);
       }
     }
   }
