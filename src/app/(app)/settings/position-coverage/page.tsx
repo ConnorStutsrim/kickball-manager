@@ -20,6 +20,14 @@ export default async function PositionCoveragePage() {
           becomes a bonus, scaled by this weight — 0 means no coverage
           relationship. Directional: the reverse pairing is a separate value.
         </p>
+        <p className="text-sm text-muted-foreground">
+          As a rough guide: 1-3 acts as a light tiebreaker, only mattering
+          between otherwise-close options; 4-6 is a real factor that can
+          favor stacking a strong helper next to a known-weak neighbor; 7-10
+          is dominant enough to override an otherwise better assignment, so
+          it&apos;s worth reserving for pairs you&apos;re confident really
+          cover for each other.
+        </p>
       </div>
       {positions.length === 0 ? (
         <p className="text-muted-foreground">
