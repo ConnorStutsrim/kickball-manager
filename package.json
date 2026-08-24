@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "postinstall": "bash scripts/setup-git-hooks.sh || true",
+    "postinstall": "bash scripts/setup-git-hooks.sh || exit 0",
     "dev": "next dev",
     "dev:restart": "bash scripts/restart-dev-server.sh",
     "build": "next build",

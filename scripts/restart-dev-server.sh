@@ -9,12 +9,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Non-interactive shells (git hooks included) don't get nvm's lazy-loaded
-# shell integration, so `node`/`npm` can silently resolve to a wrong
-# system install. Source nvm directly if it's present; otherwise fall back
-# to whatever's already on PATH.
+# shell integration, so `node`/`npm` can silently resolve to a wrong (or
+# missing) system install. Sourcing nvm.sh alone only defines the `nvm`
+# function — it doesn't select a version on its own — so follow it with
+# `nvm use default` to actually put the right node on PATH before it
+# matters below (launching `next dev`). Never fatal: if nvm isn't
+# installed, or no default alias is set, fall back to whatever's already
+# on PATH rather than aborting the whole restart under set -e.
 if [ -s "$HOME/.nvm/nvm.sh" ]; then
   # shellcheck disable=SC1091
   \. "$HOME/.nvm/nvm.sh"
+  nvm use default >/dev/null 2>&1 || true
 fi
 
 REPO_ROOT="$(pwd)"
