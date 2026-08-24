@@ -246,11 +246,16 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
   // most a single pair can ever be worth is importance(helped) x gap, so
   // raising the helped fielder's own rating is never worse than lowering
   // it — the model can no longer be made to actively seek out weakness
-  // just to farm a bigger gap. (Multiple simultaneous helpers targeting
-  // the same helped position still sum, so a helped position whose
-  // *combined* incoming weight exceeds 10 can still see a smaller residual
-  // version of the same pull — worth keeping in mind when configuring more
-  // than one helper for the same position.)
+  // just to farm a bigger gap. This bound only holds pair-by-pair, though
+  // — several helpers targeting the same position simultaneously would
+  // still sum past importance(helped) if each kept its full-strength
+  // coefficient, reopening a milder version of the same problem. So each
+  // pair's coefficient is further divided by how many helpers are
+  // configured for that helped position (within usedPositions, so a
+  // helper dropped this game via the gender-shortfall degradation doesn't
+  // count): the worst case — every configured helper simultaneously
+  // active — still sums to exactly importance(helped), never past it,
+  // regardless of how many helpers there are.
   //
   // An earlier version modeled the coupling directly — one binary variable
   // per (helper, helped, specific pair of players, inning) — but that
@@ -281,6 +286,24 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
   const shoreUpContinuousNames: string[] = [];
   const shoreUpConstraints: string[] = [];
   const shoreUpObjectiveTerms: string[] = [];
+
+  // How many configured helpers target each helped position (within
+  // usedPositions, so a helper dropped for this game via the gender-
+  // shortfall degradation doesn't still count). Multiple simultaneous
+  // helpers' coefficients sum in the objective, so each one is divided by
+  // this count — the worst case (every configured helper active at once)
+  // stays bounded at importance(helped), the same guarantee a lone pair
+  // already gets, instead of the sum blowing past it.
+  const helperCountByHelpedKIdx = new Map<number, number>();
+  for (let helperKIdx = 0; helperKIdx < usedPositions.length; helperKIdx++) {
+    for (let helpedKIdx = 0; helpedKIdx < usedPositions.length; helpedKIdx++) {
+      if (helperKIdx === helpedKIdx) continue;
+      if (shoreUpMap.has(`${usedPositions[helperKIdx].name}::${usedPositions[helpedKIdx].name}`)) {
+        helperCountByHelpedKIdx.set(helpedKIdx, (helperCountByHelpedKIdx.get(helpedKIdx) ?? 0) + 1);
+      }
+    }
+  }
+
   for (let helperKIdx = 0; helperKIdx < usedPositions.length; helperKIdx++) {
     for (let helpedKIdx = 0; helpedKIdx < usedPositions.length; helpedKIdx++) {
       if (helperKIdx === helpedKIdx) continue;
@@ -288,6 +311,7 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
         `${usedPositions[helperKIdx].name}::${usedPositions[helpedKIdx].name}`,
       );
       if (!weight) continue;
+      const helperCount = helperCountByHelpedKIdx.get(helpedKIdx)!;
 
       for (let inning = 1; inning <= innings; inning++) {
         const g = `g_${helperKIdx}_${helpedKIdx}_${inning}`;
@@ -312,9 +336,11 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
         );
         shoreUpConstraints.push(`${g}_le_My: ${g} - ${SHORE_UP_BIG_M} ${y} <= 0`);
         // Scaled by the helped position's own importance (not the raw
-        // weight alone) so this can never be worth more than raising the
-        // helped fielder's own rating would be — see the comment above.
-        const coefficient = (weight * usedPositions[helpedKIdx].importance) / 10;
+        // weight alone), and divided across every configured helper for
+        // this position, so this can never be worth more than raising the
+        // helped fielder's own rating would be — even if every configured
+        // helper is simultaneously active — see the comments above.
+        const coefficient = (weight * usedPositions[helpedKIdx].importance) / 10 / helperCount;
         shoreUpObjectiveTerms.push(`${coefficient} ${g}`);
       }
     }

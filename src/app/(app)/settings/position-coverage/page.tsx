@@ -22,7 +22,10 @@ export default async function PositionCoveragePage() {
           own rating (no coverage), 10 brings it all the way up to the row
           fielder&apos;s rating (fully covered), and values between are a
           linear interpolation. Directional: the reverse pairing is a
-          separate value.
+          separate value. If a column has more than one row helping it,
+          each helper&apos;s pull is split across all of them, so the
+          &quot;10 = fully covered&quot; ceiling is shared rather than each
+          helper reaching it independently.
         </p>
       </div>
       {positions.length === 0 ? (

@@ -653,5 +653,51 @@ describe("solveFielding", () => {
       ]);
       expect(pairHToL).toEqual({ atH: hToL.atH, atL: hToL.atL });
     });
+
+    // Separate 3-position scenario (H1, H2, L; bench of 1; 4 players): two
+    // *simultaneous* helpers both targeting L. P1/P2 are clearly the best
+    // fits for H1/H2 regardless of who plays L (rated 10 there, everyone
+    // else defaults to 5), so the only real question is whether P3 (a
+    // weak L fielder, rating 3) or P4 (a better one, rating 6) plays L —
+    // and the guarantee this fix establishes is that the answer can never
+    // flip toward the weaker one, no matter how many helpers are active
+    // at once. Both H1->L and H2->L are configured at weight 8 (well past
+    // what a single unshared pair could safely carry against L's
+    // importance of 1) specifically to stress-test that the per-pair /
+    // helper-count division still holds the line when summed.
+    it("never prefers a weaker helped fielder even with multiple simultaneous helpers", async () => {
+      const multiHelperPositions: PositionProfile[] = [
+        makePosition("H1", { importance: 1 }),
+        makePosition("H2", { importance: 1 }),
+        makePosition("L", { importance: 1 }),
+      ];
+      const multiHelperPlayers: FieldingSolverPlayer[] = [
+        { id: "P1", gender: "M" },
+        { id: "P2", gender: "M" },
+        { id: "P3", gender: "M" },
+        { id: "P4", gender: "M" },
+      ];
+      const multiHelperRatings = [
+        { playerId: "P1", positionName: "H1", rating: 10 },
+        { playerId: "P2", positionName: "H2", rating: 10 },
+        { playerId: "P3", positionName: "L", rating: 3 },
+        { playerId: "P4", positionName: "L", rating: 6 },
+      ];
+
+      const { assignments } = await solveFielding({
+        players: multiHelperPlayers,
+        positions: multiHelperPositions,
+        innings: 1,
+        genderMinimums: [],
+        ratings: multiHelperRatings,
+        shoreUpWeights: [
+          { helperPositionName: "H1", helpedPositionName: "L", weight: 8 },
+          { helperPositionName: "H2", helpedPositionName: "L", weight: 8 },
+        ],
+      });
+
+      const atL = assignments.find((a) => a.position === "L")!.playerId;
+      expect(atL).toBe("P4");
+    });
   });
 });
