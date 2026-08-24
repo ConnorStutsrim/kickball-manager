@@ -22,7 +22,10 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then
   nvm use default >/dev/null 2>&1 || true
 fi
 
-REPO_ROOT="$(pwd)"
+# -P (not the default `pwd`) resolves symlinks, matching what `readlink -f`
+# below also resolves — otherwise a repo path with any symlink component
+# would never match and this would always fail to detect its own server.
+REPO_ROOT="$(pwd -P)"
 
 # `pgrep -f "next dev"` alone would match any Next.js dev server on the
 # machine, including unrelated ones from other repos — only kill processes
