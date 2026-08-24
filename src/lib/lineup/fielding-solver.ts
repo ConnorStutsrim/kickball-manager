@@ -51,12 +51,23 @@ export interface PositionRating {
   rating: number;
 }
 
+/**
+ * How much the "helper" position can cover for a weaker "helped" neighbor
+ * (0-10, directional — helper->helped is independent of helped->helper).
+ */
+export interface PositionShoreUpWeight {
+  helperPositionName: string;
+  helpedPositionName: string;
+  weight: number;
+}
+
 export interface FieldingSolverInput {
   players: FieldingSolverPlayer[];
   positions: PositionProfile[];
   innings: number;
   genderMinimums: GenderMinimum[];
   ratings?: PositionRating[];
+  shoreUpWeights?: PositionShoreUpWeight[];
 }
 
 export interface FieldingAssignment {
@@ -121,10 +132,14 @@ function getHighs() {
  * short) — its effective minimum becomes simply "everyone present," who
  * then field every inning with no bench turns, and fairness for
  * everyone else is recomputed over just the remaining slots and players.
- * The objective maximizes total quality (position importance × rating) — this is a
- * genuine global optimum, not a per-inning approximation, verified
- * against brute-force search in the test suite. Every inning, including
- * the last one, gets the same treatment — there's no special-casing for
+ * The objective maximizes total quality (position importance × rating),
+ * plus a cross-position coverage bonus wherever a configured "helper"
+ * position's fielder outrates a "helped" neighbor's fielder that same
+ * inning (e.g. a strong middle left fielder covering for a weaker left
+ * fielder) — this is a genuine global optimum, not a per-inning
+ * approximation, verified against brute-force search in the test suite.
+ * Every inning, including the last one, gets the same treatment — there's
+ * no special-casing for
  * a "tie-breaker" inning.
  */
 export async function solveFielding(input: FieldingSolverInput): Promise<FieldingSolverResult> {
@@ -135,6 +150,13 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
   const ratingMap = new Map<string, number>();
   for (const r of input.ratings ?? []) {
     ratingMap.set(`${r.playerId}::${r.positionName}`, r.rating);
+  }
+
+  const shoreUpMap = new Map<string, number>();
+  for (const s of input.shoreUpWeights ?? []) {
+    if (s.weight > 0) {
+      shoreUpMap.set(`${s.helperPositionName}::${s.helpedPositionName}`, s.weight);
+    }
   }
 
   if (players.length === 0 || innings <= 0 || positions.length === 0) {
@@ -183,15 +205,89 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
     }
   }
 
+  // A player's raw rating (1-10) at a position, independent of that
+  // position's importance — used for both the objective's quality term and
+  // the shore-up gap below, which is about raw skill, not weighted quality.
+  const ratingOf = (pIdx: number, kIdx: number) => {
+    const player = players[pIdx];
+    const position = usedPositions[kIdx];
+    return ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
+  };
+
   // Quality (importance x rating) contributed by fielding player pIdx at
   // position kIdx, used both for the objective and to weight constraint
   // terms consistently.
   const qualityOf = (pIdx: number, kIdx: number) => {
-    const player = players[pIdx];
-    const position = usedPositions[kIdx];
-    const rating = ratingMap.get(`${player.id}::${position.name}`) ?? DEFAULT_RATING;
-    return position.importance * rating;
+    return usedPositions[kIdx].importance * ratingOf(pIdx, kIdx);
   };
+
+  // Cross-position coverage: when a "helper" position's assigned player
+  // rates higher (raw skill) than a "helped" neighbor's assigned player,
+  // some of that gap becomes a bonus — e.g. a strong middle left fielder
+  // covering ground for a weaker left fielder. This couples two
+  // (player, position) decisions together, which breaks the plain linear
+  // assignment structure everything else here relies on.
+  //
+  // An earlier version of this modeled the coupling directly — one binary
+  // variable per (helper, helped, specific pair of players, inning) — but
+  // that scales with players^2 and gives branch-and-bound a very weak
+  // relaxation to work with; verified against realistic data (14 players,
+  // 8 configured pairs) it didn't finish solving within 2 minutes. This
+  // version scales with position-pairs x innings instead: "rating at the
+  // helper position this inning" and "at the helped position" are each
+  // already linear expressions over the x variables (sum of each
+  // candidate's rating, weighted by whether they're actually assigned
+  // there), so the gap between them is linear too — it just needs the
+  // standard big-M linearization of max(0, gap) (one continuous variable g
+  // and one binary indicator y per helper/helped pair per inning):
+  //   g >= gap
+  //   g <= gap + M(1-y)
+  //   g <= My
+  // which forces g = gap when y=1 (the gap is non-negative) and g = 0
+  // when y=0, with M = 9 (the largest possible gap on the 1-10 rating
+  // scale). Verified against the same realistic data this solves to a
+  // proven optimum, just slower (1-25s observed, instead of ~30ms) and
+  // meaningfully less predictable than the rest of this solver — accepted
+  // as a real cost of keeping this fully exact rather than a heuristic.
+  const SHORE_UP_BIG_M = 9;
+  const shoreUpBinaryNames: string[] = [];
+  const shoreUpContinuousNames: string[] = [];
+  const shoreUpConstraints: string[] = [];
+  const shoreUpObjectiveTerms: string[] = [];
+  for (let helperKIdx = 0; helperKIdx < usedPositions.length; helperKIdx++) {
+    for (let helpedKIdx = 0; helpedKIdx < usedPositions.length; helpedKIdx++) {
+      if (helperKIdx === helpedKIdx) continue;
+      const weight = shoreUpMap.get(
+        `${usedPositions[helperKIdx].name}::${usedPositions[helpedKIdx].name}`,
+      );
+      if (!weight) continue;
+
+      for (let inning = 1; inning <= innings; inning++) {
+        const g = `g_${helperKIdx}_${helpedKIdx}_${inning}`;
+        const y = `y_${helperKIdx}_${helpedKIdx}_${inning}`;
+        shoreUpContinuousNames.push(g);
+        shoreUpBinaryNames.push(y);
+
+        // Each term's sign must be baked into its own coefficient — a single
+        // leading "-" before a "+"-joined sum only negates the first term in
+        // LP-format constraint text, not the whole sum.
+        const negHelperTerms = players.map(
+          (_, pIdx) => `${-ratingOf(pIdx, helperKIdx)} ${varName(pIdx, inning, helperKIdx)}`,
+        );
+        const helpedTerms = players.map(
+          (_, pIdx) => `${ratingOf(pIdx, helpedKIdx)} ${varName(pIdx, inning, helpedKIdx)}`,
+        );
+        const gapExpr = [...negHelperTerms, ...helpedTerms].join(" + ");
+
+        shoreUpConstraints.push(`${g}_ge_gap: ${g} + ${gapExpr} >= 0`);
+        shoreUpConstraints.push(
+          `${g}_le_gapM: ${g} + ${gapExpr} + ${SHORE_UP_BIG_M} ${y} <= ${SHORE_UP_BIG_M}`,
+        );
+        shoreUpConstraints.push(`${g}_le_My: ${g} - ${SHORE_UP_BIG_M} ${y} <= 0`);
+        shoreUpObjectiveTerms.push(`${weight} ${g}`);
+      }
+    }
+  }
 
   function objectiveTerms(): string {
     const terms: string[] = [];
@@ -202,10 +298,12 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
         }
       }
     }
+    terms.push(...shoreUpObjectiveTerms);
     return terms.join(" + ");
   }
 
-  const baseConstraints: string[] = [];
+  const baseConstraints: string[] = [...shoreUpConstraints];
+  allVariableNames.push(...shoreUpBinaryNames);
 
   // Each position filled by exactly one player every inning.
   for (let inning = 1; inning <= innings; inning++) {
@@ -287,6 +385,12 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
       ` obj: ${objective}`,
       "Subject To",
       ...constraints.map((c) => ` ${c}`),
+      // The shore-up "gap" variables are continuous (>= 0), not binary —
+      // LP format defaults unlisted variables to exactly that bound, but
+      // stated explicitly here for clarity.
+      ...(shoreUpContinuousNames.length > 0
+        ? ["Bounds", ...shoreUpContinuousNames.map((g) => ` ${g} >= 0`)]
+        : []),
       "Binary",
       ` ${allVariableNames.join(" ")}`,
       "End",

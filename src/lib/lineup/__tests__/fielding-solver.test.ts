@@ -6,6 +6,7 @@ import {
   type FieldingSolverPlayer,
   type GenderMinimum,
   type PositionProfile,
+  type PositionShoreUpWeight,
 } from "../fielding-solver";
 
 function makePosition(name: string, overrides: Partial<Omit<PositionProfile, "name">> = {}): PositionProfile {
@@ -472,5 +473,113 @@ describe("solveFielding", () => {
     const s2BenchInnings = benchInningsFor("s2");
     const overlap = [...s1BenchInnings].filter((inning) => s2BenchInnings.has(inning));
     expect(overlap).toEqual([]);
+  });
+
+  describe("cross-position coverage (shoreUpWeights)", () => {
+    // 3 players, 2 positions (H = "helper", L = "helped"), bench of 1, 1
+    // inning, no gender constraint. Ratings are adversarial to a naive
+    // best-fit assignment: A is clearly the best fit for H (10), and C is
+    // the best fit for L (9) among the *other* two players — so without
+    // any coverage bonus, {A->H, C->L} (raw quality 19) beats {A->H,
+    // B->L} (raw quality 16). But B->L, despite being the weaker raw fit,
+    // leaves a much bigger gap between A's H-rating (10) and L's
+    // fielder's rating for a helper->helped bonus to apply to.
+    // importance overridden to 1 (makePosition defaults to 3) so the raw
+    // quality numbers below match exactly what they say — the shore-up
+    // bonus is based on raw rating, not importance-weighted quality, so a
+    // non-1 importance would scale one side of the math but not the other.
+    const positions: PositionProfile[] = [
+      makePosition("H", { importance: 1 }),
+      makePosition("L", { importance: 1 }),
+    ];
+    const players: FieldingSolverPlayer[] = [
+      { id: "A", gender: "M" },
+      { id: "B", gender: "M" },
+      { id: "C", gender: "M" },
+    ];
+    const ratings = [
+      { playerId: "A", positionName: "H", rating: 10 },
+      { playerId: "A", positionName: "L", rating: 5 },
+      { playerId: "B", positionName: "H", rating: 6 },
+      { playerId: "B", positionName: "L", rating: 6 },
+      { playerId: "C", positionName: "H", rating: 5 },
+      { playerId: "C", positionName: "L", rating: 9 },
+    ];
+    const ratingOf = (playerId: string, positionName: string) =>
+      ratings.find((r) => r.playerId === playerId && r.positionName === positionName)!.rating;
+
+    // Brute force over every ordered (H, L) player pair, scoring raw fit
+    // plus the shore-up bonus for a given (helper, helped, weight) —
+    // returns the winning pair, not just its score, so tests can assert on
+    // *which* assignment won rather than reconstructing a bonus-inclusive
+    // total from the solver's output after the fact.
+    function bruteForcePair(shoreUpWeight: number, helper: "H" | "L", helped: "H" | "L") {
+      let best = -Infinity;
+      let bestPair = { atH: "", atL: "" };
+      for (const h of players) {
+        for (const l of players) {
+          if (h.id === l.id) continue;
+          const raw = ratingOf(h.id, "H") + ratingOf(l.id, "L");
+          const fielderAtHelper = helper === "H" ? h.id : l.id;
+          const fielderAtHelped = helped === "H" ? h.id : l.id;
+          const bonus =
+            shoreUpWeight * Math.max(0, ratingOf(fielderAtHelper, helper) - ratingOf(fielderAtHelped, helped));
+          const total = raw + bonus;
+          if (total > best) {
+            best = total;
+            bestPair = { atH: h.id, atL: l.id };
+          }
+        }
+      }
+      return { ...bestPair, total: best };
+    }
+
+    async function fieldedPair(shoreUpWeights: PositionShoreUpWeight[]) {
+      const { assignments } = await solveFielding({
+        players,
+        positions,
+        innings: 1,
+        genderMinimums: [],
+        ratings,
+        shoreUpWeights,
+      });
+      return {
+        atH: assignments.find((a) => a.position === "H")!.playerId,
+        atL: assignments.find((a) => a.position === "L")!.playerId,
+      };
+    }
+
+    it("has no effect when no weight is configured (backward compatible)", async () => {
+      // Pure best-fit with no bonus at all: {A->H, C->L}.
+      expect(await fieldedPair([])).toEqual({ atH: "A", atL: "C" });
+      expect(bruteForcePair(0, "H", "L")).toMatchObject({ atH: "A", atL: "C" });
+    });
+
+    it("has no effect when the configured weight is 0", async () => {
+      const pair = await fieldedPair([{ helperPositionName: "H", helpedPositionName: "L", weight: 0 }]);
+      expect(pair).toEqual({ atH: "A", atL: "C" });
+    });
+
+    it("shifts the optimal assignment once a positive weight makes the coverage bonus outweigh raw fit", async () => {
+      const expected = bruteForcePair(2, "H", "L");
+      // Confirms the brute force itself picked a genuinely different pair
+      // than the no-bonus case, not just a higher score for the same one.
+      expect(expected).toMatchObject({ atH: "A", atL: "B" });
+      expect(expected.total).toBeGreaterThan(bruteForcePair(0, "H", "L").total);
+
+      const pair = await fieldedPair([{ helperPositionName: "H", helpedPositionName: "L", weight: 2 }]);
+      expect(pair).toEqual({ atH: expected.atH, atL: expected.atL });
+    });
+
+    it("is directional — the same weight applied L->H instead of H->L finds a different gap and a different optimum", async () => {
+      const expected = bruteForcePair(5, "L", "H");
+      // Genuinely different mechanism from the H->L case above: here the
+      // biggest exploitable gap is C fielding L (9) outrating B fielding H
+      // (6) — the opposite pairing from the H->L test.
+      expect(expected).toMatchObject({ atH: "B", atL: "C" });
+
+      const pair = await fieldedPair([{ helperPositionName: "L", helpedPositionName: "H", weight: 5 }]);
+      expect(pair).toEqual({ atH: expected.atH, atL: expected.atL });
+    });
   });
 });
