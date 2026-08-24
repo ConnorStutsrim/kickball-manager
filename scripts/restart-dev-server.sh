@@ -17,7 +17,22 @@ if [ -s "$HOME/.nvm/nvm.sh" ]; then
   \. "$HOME/.nvm/nvm.sh"
 fi
 
-PIDS="$(pgrep -f "next dev" || true)"
+REPO_ROOT="$(pwd)"
+
+# `pgrep -f "next dev"` alone would match any Next.js dev server on the
+# machine, including unrelated ones from other repos — only kill processes
+# actually running from this repo's directory (checked via /proc, so this
+# only filters on Linux; elsewhere every candidate is kept as a fallback).
+PIDS=""
+for pid in $(pgrep -f "next dev" || true); do
+  if [ -r "/proc/$pid/cwd" ]; then
+    cwd="$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)"
+    [ "$cwd" = "$REPO_ROOT" ] && PIDS="$PIDS $pid"
+  else
+    PIDS="$PIDS $pid"
+  fi
+done
+
 if [ -z "$PIDS" ]; then
   exit 0
 fi
@@ -28,6 +43,6 @@ kill $PIDS 2>/dev/null || true
 sleep 1
 rm -rf .next
 
-nohup node node_modules/.bin/next dev >/tmp/kbm-dev.log 2>&1 </dev/null &
+nohup node_modules/.bin/next dev >/tmp/kbm-dev.log 2>&1 </dev/null &
 disown
 echo "[restart-dev-server] dev server restarting (log: /tmp/kbm-dev.log)"
