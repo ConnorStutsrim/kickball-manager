@@ -7,7 +7,13 @@ import { db } from "@/db";
 import { positionShoreUpWeights } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
-const weightSchema = z.coerce.number().int().min(0).max(10);
+// A missing field (null) must fail validation, not silently coerce to 0 —
+// z.coerce.number() would otherwise treat an absent form field the same as
+// an explicit 0 and silently overwrite an existing non-zero weight.
+const weightSchema = z.preprocess(
+  (v) => (v === null ? undefined : v),
+  z.coerce.number().int().min(0).max(10),
+);
 
 export type PositionCoverageFormState = { error?: string };
 
