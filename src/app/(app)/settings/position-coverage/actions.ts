@@ -7,11 +7,12 @@ import { db } from "@/db";
 import { positionShoreUpWeights } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
-// A missing field (null) must fail validation, not silently coerce to 0 —
-// z.coerce.number() would otherwise treat an absent form field the same as
-// an explicit 0 and silently overwrite an existing non-zero weight.
+// A missing field (null) or a cleared input (submitted as an empty string,
+// not omitted) must both fail validation, not silently coerce to 0 —
+// z.coerce.number() would otherwise treat either the same as an explicit 0
+// and silently overwrite an existing non-zero weight.
 const weightSchema = z.preprocess(
-  (v) => (v === null ? undefined : v),
+  (v) => (v === null || (typeof v === "string" && v.trim() === "") ? undefined : v),
   z.coerce.number().int().min(0).max(10),
 );
 
