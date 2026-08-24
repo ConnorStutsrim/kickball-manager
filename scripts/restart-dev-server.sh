@@ -42,9 +42,36 @@ fi
 echo "[restart-dev-server] stale dev server detected, restarting with a clean .next..."
 # shellcheck disable=SC2086
 kill $PIDS 2>/dev/null || true
-sleep 1
+
+# Poll for the old process(es) to actually exit rather than a fixed sleep —
+# a slow shutdown could otherwise race with deleting .next out from under
+# it, or with the new server trying to bind the same port before the old
+# one has released it. SIGKILL any stragglers once the timeout is up.
+# (Every check below uses `if`, not a bare `&&`/`||` chain — under set -e,
+# a failing left-hand side of a top-level `&&` aborts the whole script,
+# and "the process has already exited" is the expected, common case here.)
+still_running=""
+for _ in $(seq 1 20); do
+  still_running=""
+  for pid in $PIDS; do
+    if kill -0 "$pid" 2>/dev/null; then
+      still_running="$still_running $pid"
+    fi
+  done
+  if [ -z "$still_running" ]; then
+    break
+  fi
+  sleep 0.25
+done
+if [ -n "$still_running" ]; then
+  # shellcheck disable=SC2086
+  kill -9 $still_running 2>/dev/null || true
+fi
+
 rm -rf .next
 
+# nohup already detaches this from the shell/terminal — disown isn't
+# needed on top of it, and can itself fail under `set -e` in a
+# non-interactive shell (git hooks included) where job control is off.
 nohup node_modules/.bin/next dev >/tmp/kbm-dev.log 2>&1 </dev/null &
-disown
 echo "[restart-dev-server] dev server restarting (log: /tmp/kbm-dev.log)"
