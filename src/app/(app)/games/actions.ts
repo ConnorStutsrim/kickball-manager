@@ -52,6 +52,7 @@ export async function createGame(
     })
     .returning();
 
+  revalidatePath("/games");
   redirect(`/games/${game.id}`);
 }
 
