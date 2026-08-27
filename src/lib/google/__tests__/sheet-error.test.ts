@@ -24,7 +24,21 @@ describe("describeGoogleSheetsError", () => {
     expect(describeGoogleSheetsError(err)).toBe(
       "Something went wrong generating the sheet. Check the server logs if this keeps happening.",
     );
-    expect(spy).toHaveBeenCalledWith("Unexpected error generating Google Sheet:", err);
+    expect(spy).toHaveBeenCalledWith("Unexpected error generating Google Sheet:", expect.any(String));
+    spy.mockRestore();
+  });
+
+  it("never logs the raw error object — a real Gaxios error's nested request config can carry the refresh token itself", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    // Shaped like the real error this file was written to handle: a plain
+    // `message` alongside a nested config carrying sensitive request data,
+    // exactly what a raw Gaxios error looks like.
+    const err = Object.assign(new Error("invalid_grant"), {
+      config: { data: { refresh_token: "SECRET_TOKEN_VALUE" } },
+    });
+    describeGoogleSheetsError(err);
+    const loggedArgs = spy.mock.calls[0];
+    expect(loggedArgs.some((arg) => JSON.stringify(arg).includes("SECRET_TOKEN_VALUE"))).toBe(false);
     spy.mockRestore();
   });
 
