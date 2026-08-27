@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGame } from "@/lib/data/games";
 import { getGameLineup } from "@/lib/data/lineups";
 import { getLeagueRules } from "@/lib/data/league-rules";
 import { getPositions } from "@/lib/data/positions";
 import { getPlayers } from "@/lib/data/players";
-import { Button } from "@/components/ui/button";
 import { GenerateLineupForm } from "./generate-lineup-form";
 import { BattingOrderList } from "./batting-order-list";
 import { FieldingGrid } from "./fielding-grid";
@@ -61,9 +59,6 @@ export default async function GamePage(props: PageProps<"/games/[id]">) {
 
       {lineup && (
         <div className="flex flex-wrap items-center gap-4">
-          <Button render={<Link href={`/games/${id}/live`} />}>
-            Start live tracking
-          </Button>
           <GenerateSheetButton gameId={id} initialUrl={game.sheetUrl} />
         </div>
       )}
