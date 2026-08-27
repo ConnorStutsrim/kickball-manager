@@ -27,12 +27,9 @@ export const plateAppearanceResultEnum = [
 ] as const;
 export type PlateAppearanceResult = (typeof plateAppearanceResultEnum)[number];
 
-export const baserunningEventTypeEnum = [
-  "steal",
-  "caught_stealing",
-  "advanced",
-  "scored",
-] as const;
+// Only "advanced"/"scored" are real events in this league — it doesn't
+// allow stealing.
+export const baserunningEventTypeEnum = ["advanced", "scored"] as const;
 export type BaserunningEventType = (typeof baserunningEventTypeEnum)[number];
 
 export const players = pgTable("players", {
