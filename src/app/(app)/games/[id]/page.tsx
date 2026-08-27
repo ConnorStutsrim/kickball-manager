@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getGame } from "@/lib/data/games";
 import { getGameLineup } from "@/lib/data/lineups";
 import { getLeagueRules } from "@/lib/data/league-rules";
 import { getPositions } from "@/lib/data/positions";
 import { getPlayers } from "@/lib/data/players";
+import { Button } from "@/components/ui/button";
 import { GenerateLineupForm } from "./generate-lineup-form";
 import { BattingOrderList } from "./batting-order-list";
 import { FieldingGrid } from "./fielding-grid";
@@ -38,7 +40,12 @@ export default async function GamePage(props: PageProps<"/games/[id]">) {
             {game.location ? ` · ${game.location}` : ""} · {game.inningsPlanned} innings
           </p>
         </div>
-        <DeleteGameButton gameId={id} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" render={<Link href={`/games/${id}/edit`} />}>
+            Edit game
+          </Button>
+          <DeleteGameButton gameId={id} />
+        </div>
       </div>
 
       {!leagueRules ? (
