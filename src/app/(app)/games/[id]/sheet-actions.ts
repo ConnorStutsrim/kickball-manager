@@ -10,6 +10,7 @@ import { getGameLineup } from "@/lib/data/lineups";
 import { getPositions } from "@/lib/data/positions";
 import { getPlayers } from "@/lib/data/players";
 import { getSheetsClient } from "@/lib/google/client";
+import { describeGoogleSheetsError } from "@/lib/google/sheet-error";
 import { buildGameSheetGrid } from "@/lib/google/sheet-layout";
 import { buildFormatRequests } from "@/lib/google/sheet-formatting";
 import { BENCH } from "@/lib/lineup/fielding-solver";
@@ -73,52 +74,50 @@ export async function generateGameSheet(gameId: string): Promise<GenerateSheetRe
     })),
   });
 
-  let sheets;
   try {
-    sheets = await getSheetsClient();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Google Sheets error.";
-    return { error: message };
-  }
+    const sheets = await getSheetsClient();
 
-  let spreadsheetId: string;
-  let sheetId: number;
-  let url: string;
+    let spreadsheetId: string;
+    let sheetId: number;
+    let url: string;
 
-  const existingId = game.sheetUrl ? extractSpreadsheetId(game.sheetUrl) : undefined;
-  if (existingId) {
-    spreadsheetId = existingId;
-    url = game.sheetUrl!;
-    await sheets.spreadsheets.values.clear({ spreadsheetId, range: "A1:Z200" });
-    const existing = await sheets.spreadsheets.get({
+    const existingId = game.sheetUrl ? extractSpreadsheetId(game.sheetUrl) : undefined;
+    if (existingId) {
+      spreadsheetId = existingId;
+      url = game.sheetUrl!;
+      await sheets.spreadsheets.values.clear({ spreadsheetId, range: "A1:Z200" });
+      const existing = await sheets.spreadsheets.get({
+        spreadsheetId,
+        fields: "sheets.properties.sheetId",
+      });
+      sheetId = existing.data.sheets![0].properties!.sheetId!;
+    } else {
+      const created = await sheets.spreadsheets.create({
+        requestBody: {
+          properties: { title: `vs ${game.opponent ?? "Game"} - ${game.date}` },
+        },
+      });
+      spreadsheetId = created.data.spreadsheetId!;
+      sheetId = created.data.sheets![0].properties!.sheetId!;
+      url = created.data.spreadsheetUrl!;
+      await db.update(games).set({ sheetUrl: url }).where(eq(games.id, gameId));
+    }
+
+    await sheets.spreadsheets.values.update({
       spreadsheetId,
-      fields: "sheets.properties.sheetId",
+      range: "A1",
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: grid },
     });
-    sheetId = existing.data.sheets![0].properties!.sheetId!;
-  } else {
-    const created = await sheets.spreadsheets.create({
-      requestBody: {
-        properties: { title: `vs ${game.opponent ?? "Game"} - ${game.date}` },
-      },
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: { requests: buildFormatRequests(sheetId, sections) },
     });
-    spreadsheetId = created.data.spreadsheetId!;
-    sheetId = created.data.sheets![0].properties!.sheetId!;
-    url = created.data.spreadsheetUrl!;
-    await db.update(games).set({ sheetUrl: url }).where(eq(games.id, gameId));
+
+    revalidatePath(`/games/${gameId}`);
+    return { url };
+  } catch (err) {
+    return { error: describeGoogleSheetsError(err) };
   }
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: "A1",
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values: grid },
-  });
-
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: { requests: buildFormatRequests(sheetId, sections) },
-  });
-
-  revalidatePath(`/games/${gameId}`);
-  return { url };
 }
