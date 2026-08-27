@@ -31,11 +31,6 @@ gives that spreadsheet a real data model behind it.
       seeded from scouting ratings until real stats accumulate
 - [x] Manual overrides — reorder the batting order, swap fielding assignments
       per inning, after generating
-- [x] Live game-day tracking — one-tap plate-appearance entry that auto-advances
-      through the batting order, a derived (not stored) inning/outs/score state,
-      per-inning scoreboard. Baserunning-event and defensive-note logging are
-      built but not working in practice yet; a redesign is tracked in
-      [#5](https://github.com/ConnorStutsrim/kickball-manager/issues/5)
 - [x] Google Sheets export — one-click per-game spreadsheet (fielding grid,
       batting order, blank scoring section for live use), shaped after the
       team's own existing spreadsheet; regenerating updates the same sheet
@@ -66,7 +61,7 @@ flowchart LR
     subgraph App["Next.js App (Vercel)"]
         direction TB
         Proxy["Auth proxy<br/>src/proxy.ts"]
-        UI["Roster / Games / Live Tracking / Settings UI"]
+        UI["Roster / Games / Settings UI"]
         Engine["Lineup engine<br/>fielding solver + Hungarian assignment + batting order"]
         Stats["Stats blending<br/>src/lib/stats"]
     end
@@ -117,22 +112,18 @@ The lineup engine is a set of pure, unit-tested functions (`src/lib/lineup/`):
   appearances, times reached base, or bunt attempts, whichever applies),
   not one global count.
 
-Game state during live tracking (`src/lib/game/game-state.ts`) is computed,
-not stored: whose turn it is, the inning/half/outs, and the running score are
-all derived from the recorded plate appearances, baserunning events, and
-opponent per-inning runs on every read — there's no separate "current state"
-row that could drift out of sync with the play-by-play data.
-
 ## Roadmap
 
 1. ✅ Repo scaffold
 2. ✅ Core schema + CRUD (players, league rules, positions, seasons, games)
 3. ✅ Lineup generation engine (fielding solver + best-fit position assignment
    + rating-based batting order)
-4. ✅ Live game-day stat tracking (derived game state, plate appearances,
-   opponent scoring) — baserunning/defensive-note logging shipped but isn't
-   working in practice; redesign tracked in
-   [#5](https://github.com/ConnorStutsrim/kickball-manager/issues/5)
+4. ✅ Live game-day stat tracking — built, then removed. One-tap real-time
+   entry during a game wasn't a good fit in practice
+   ([#5](https://github.com/ConnorStutsrim/kickball-manager/issues/5)); the
+   team isn't collecting stats that way. The underlying `plate_appearances` /
+   `baserunning_events` tables and stats-blending pipeline (below) stay, for
+   whatever collection approach comes next
 5. ✅ Google Sheets export (per-game spreadsheet matching the team's real
    sheet, OAuth-connected, regenerate-in-place)
 6. ✅ Stats-driven lineup suggestions — batting profiles blend season stats

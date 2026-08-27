@@ -35,9 +35,6 @@ export const baserunningEventTypeEnum = [
 ] as const;
 export type BaserunningEventType = (typeof baserunningEventTypeEnum)[number];
 
-export const defensiveNoteTagEnum = ["great_play", "error", "assist"] as const;
-export type DefensiveNoteTag = (typeof defensiveNoteTagEnum)[number];
-
 export const players = pgTable("players", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
@@ -192,20 +189,6 @@ export const fieldingAssignments = pgTable("fielding_assignments", {
   position: text("position").notNull(),
 }).enableRLS();
 
-// The opponent's roster isn't tracked in detail — just their runs per half-inning.
-export const opponentInningRuns = pgTable(
-  "opponent_inning_runs",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    gameId: uuid("game_id")
-      .notNull()
-      .references(() => games.id, { onDelete: "cascade" }),
-    inning: integer("inning").notNull(),
-    runs: integer("runs").notNull(),
-  },
-  (table) => [unique().on(table.gameId, table.inning)],
-).enableRLS();
-
 export const plateAppearances = pgTable("plate_appearances", {
   id: uuid("id").primaryKey().defaultRandom(),
   gameId: uuid("game_id")
@@ -237,18 +220,4 @@ export const baserunningEvents = pgTable("baserunning_events", {
   inning: integer("inning").notNull(),
   eventType: text("event_type", { enum: baserunningEventTypeEnum }).notNull(),
   notes: text("notes"),
-}).enableRLS();
-
-export const defensiveNotes = pgTable("defensive_notes", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  gameId: uuid("game_id")
-    .notNull()
-    .references(() => games.id, { onDelete: "cascade" }),
-  playerId: uuid("player_id")
-    .notNull()
-    .references(() => players.id, { onDelete: "cascade" }),
-  inning: integer("inning").notNull(),
-  position: text("position").notNull(),
-  note: text("note").notNull(),
-  tag: text("tag", { enum: defensiveNoteTagEnum }),
 }).enableRLS();
