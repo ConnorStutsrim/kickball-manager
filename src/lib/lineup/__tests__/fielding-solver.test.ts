@@ -106,14 +106,89 @@ describe("solveFielding", () => {
     }
   });
 
+  it.each([
+    { men: 10, women: 4, innings: 7 },
+    { men: 4, women: 10, innings: 7 },
+    { men: 12, women: 5, innings: 7 },
+    { men: 5, women: 12, innings: 7 },
+    { men: 10, women: 4, innings: 1 },
+    { men: 10, women: 4, innings: 3 },
+  ])("prioritizes gender minimums over roster-wide fairness ($men men, $women women, $innings innings)", async ({ men, women, innings }) => {
+    const players = makeRoster(men, women);
+    const { assignments, warnings } = await solveFielding({
+      players,
+      positions: POSITIONS,
+      innings,
+      genderMinimums: STANDARD_MINIMUMS,
+      // Quality would favor benching women without the gender constraints.
+      ratings: players.flatMap((p) => POSITIONS.map((position) => ({
+        playerId: p.id,
+        positionName: position.name,
+        rating: p.gender === "M" ? 10 : 1,
+      }))),
+    });
+
+    expect(warnings).toEqual([]);
+    expect(assignments).toHaveLength(players.length * innings);
+    for (let inning = 1; inning <= innings; inning++) {
+      const fielders = assignments.filter((a) => a.inning === inning && a.position !== BENCH);
+      expect(fielders).toHaveLength(POSITIONS.length);
+      expect(new Set(fielders.map((a) => a.position)).size).toBe(POSITIONS.length);
+      for (const gender of ["M", "F"] as const) {
+        const ids = new Set(players.filter((p) => p.gender === gender).map((p) => p.id));
+        expect(fielders.filter((a) => ids.has(a.playerId)).length).toBeGreaterThanOrEqual(4);
+      }
+    }
+
+    for (const gender of ["M", "F"] as const) {
+      const counts = players.filter((p) => p.gender === gender).map((p) =>
+        assignments.filter((a) => a.playerId === p.id && a.position === BENCH).length,
+      );
+      expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+      if (counts.length === 4) expect(counts.every((count) => count === 0)).toBe(true);
+    }
+  });
+
+  it("uses configured minimums rather than hardcoding four always-playing fielders", async () => {
+    const players = makeRoster(8, 3);
+    const { assignments, warnings } = await solveFielding({
+      players,
+      positions: POSITIONS.slice(0, 5),
+      innings: 4,
+      genderMinimums: [{ gender: "M", min: 2 }, { gender: "F", min: 3 }],
+    });
+
+    expect(warnings).toEqual([]);
+    expect(assignments).toHaveLength(players.length * 4);
+    for (const player of players) {
+      const fielded = assignments.filter((a) => a.playerId === player.id && a.position !== BENCH);
+      expect(fielded).toHaveLength(player.gender === "F" ? 4 : 1);
+    }
+  });
+
+  it("only relaxes gender minimums when they cannot fit on the field", async () => {
+    const players = makeRoster(4, 4);
+    const { assignments, warnings } = await solveFielding({
+      players,
+      positions: POSITIONS.slice(0, 7),
+      innings: 2,
+      genderMinimums: STANDARD_MINIMUMS,
+    });
+
+    expect(warnings).toEqual([
+      "Could not satisfy every constraint at once; gender minimums were relaxed for this lineup.",
+    ]);
+    expect(assignments).toHaveLength(players.length * 2);
+    for (let inning = 1; inning <= 2; inning++) {
+      expect(assignments.filter((a) => a.inning === inning && a.position !== BENCH)).toHaveLength(7);
+    }
+  });
+
   it("keeps bench innings within 1 of each other *within each gender*", async () => {
     // Only 5 men against a minimum of 4 in the field every inning means
-    // men structurally have far less bench slack than the 9 women — but a
-    // single roster-wide fairness bound (floor/ceil of one shared share)
-    // still forces every player, of either gender, into one of just two
-    // possible bench-count values, so within-gender spread of at most 1
-    // is a guaranteed consequence, not something that needs separate
-    // per-gender enforcement.
+    // men structurally have less bench slack than the 9 women. Their
+    // minimum takes priority, while each gender's floor/ceil fairness
+    // bounds still keep its players' bench counts within 1.
     const players = makeRoster(5, 9); // 14 players, bench of 3
     const { assignments } = await solveFielding({
       players,
