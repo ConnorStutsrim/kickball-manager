@@ -123,10 +123,11 @@ function getHighs() {
  * to 1 for a given inning is on the bench. Constraints: every position is
  * filled by exactly one player each inning; a player fields at most one
  * position per inning; each player's total field-innings across the whole
- * game falls within the fairest possible split (floor/ceil of
- * innings*fieldSize/players.length — the same bound applies to every
- * player regardless of gender, which is enough on its own to also keep
- * each gender's bench counts within 1 of each other); each inning meets
+ * game falls within a fair floor/ceil split, with gender minimums taking
+ * priority over equal bench time across the roster. Genders that need
+ * more than the roster-wide fair share reserve their required field
+ * slots first; everyone else shares the remaining slots equally. Bench
+ * counts within each gender still differ by at most 1. Each inning meets
  * the league's per-gender minimums. A gender short of its configured
  * minimum plays without Float (1 short) and also without Outfield 4 (2+
  * short) — its effective minimum becomes simply "everyone present," who
@@ -379,23 +380,48 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
     }
   }
 
-  // Fairness: every player's total field-innings across the whole game
-  // falls within the fairest possible split — normally of the roster-wide
-  // total, but a gender short of its minimum plays every inning with zero
-  // bench turns (there's no slack to rotate when you're already short), so
-  // those players get a fixed floor=ceil=innings instead, and fairness for
-  // everyone else is recomputed over just the remaining field slots and
-  // remaining players. When no gender is short this reduces to exactly the
-  // single roster-wide share it replaces.
-  const alwaysPlayIds = new Set(
-    players.filter((p) => shortfalls.some((s) => s.gender === p.gender && s.shortfall > 0)).map((p) => p.id),
+  // Start with equal field time, but reserve slots for any gender whose
+  // minimum requires a larger share. This covers both exactly meeting a
+  // minimum (everyone of that gender must play every inning) and having
+  // slightly more players than the minimum but too few for roster-wide
+  // fairness. Recompute the equal share after each reservation, keeping
+  // bench counts within 1 among players of the same gender.
+  const countsByGender = new Map<Gender, number>();
+  for (const player of players) {
+    countsByGender.set(player.gender, (countsByGender.get(player.gender) ?? 0) + 1);
+  }
+  const genderGroups = [...countsByGender].map(([gender, count]) => ({
+    gender,
+    count,
+    minimum: Math.max(0, ...shortfalls
+      .filter((s) => s.gender === gender)
+      .map((s) => Math.min(s.min, s.total))),
+  })).sort((a, b) => b.minimum / b.count - a.minimum / a.count);
+  const fairShareByGender = new Map(
+    genderGroups.map((group) => [group.gender, (innings * fieldSize) / players.length]),
   );
-  const remainingPlayers = players.filter((p) => !alwaysPlayIds.has(p.id));
-  const remainingFieldSize = Math.max(0, fieldSize - alwaysPlayIds.size);
-  const remainingFairShare =
-    remainingPlayers.length > 0 ? (innings * remainingFieldSize) / remainingPlayers.length : 0;
-  const remainingFairFloor = Math.floor(remainingFairShare);
-  const remainingFairCeil = Math.ceil(remainingFairShare);
+
+  // If the effective minimums cannot fit on the field, keep ordinary
+  // fairness so the existing gender-relaxed fallback remains solvable.
+  if (genderGroups.reduce((sum, group) => sum + group.minimum, 0) <= fieldSize) {
+    let remainingFieldSize = fieldSize;
+    let remainingPlayerCount = players.length;
+    for (let groupIdx = 0; groupIdx < genderGroups.length; groupIdx++) {
+      const group = genderGroups[groupIdx];
+      const shared = (innings * remainingFieldSize) / remainingPlayerCount;
+      const required = (innings * group.minimum) / group.count;
+      if (required <= shared) {
+        for (const remaining of genderGroups.slice(groupIdx)) {
+          fairShareByGender.set(remaining.gender, shared);
+        }
+        break;
+      }
+      fairShareByGender.set(group.gender, required);
+      remainingFieldSize -= group.minimum;
+      remainingPlayerCount -= group.count;
+    }
+  }
+
   for (let pIdx = 0; pIdx < players.length; pIdx++) {
     const player = players[pIdx];
     const terms: string[] = [];
@@ -404,16 +430,15 @@ export async function solveFielding(input: FieldingSolverInput): Promise<Fieldin
         terms.push(`1 ${varName(pIdx, inning, kIdx)}`);
       }
     }
-    const [lo, hi] = alwaysPlayIds.has(player.id)
-      ? [innings, innings]
-      : [remainingFairFloor, remainingFairCeil];
+    const fairShare = fairShareByGender.get(player.gender)!;
+    const [lo, hi] = [Math.floor(fairShare), Math.ceil(fairShare)];
     baseConstraints.push(`fairlo_${pIdx}: ${terms.join(" + ")} >= ${lo}`);
     baseConstraints.push(`fairhi_${pIdx}: ${terms.join(" + ")} <= ${hi}`);
   }
 
-  // Every configured gender minimum is always achievable now: a short
-  // gender's effective requirement is simply "all of them" rather than
-  // being dropped and left unconstrained.
+  // A short gender's effective requirement is simply "all of them"
+  // rather than being dropped and left unconstrained. Fairness above
+  // respects these requirements whenever they fit on the field.
   const genderConstraints: string[] = [];
   for (const s of shortfalls) {
     const effectiveMin = Math.min(s.min, s.total);
