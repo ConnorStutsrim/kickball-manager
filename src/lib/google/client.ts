@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { googleAuth } from "@/db/schema";
+import { GoogleSheetsUserError } from "./sheet-error";
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
 
@@ -52,7 +53,7 @@ export async function isGoogleConnected(): Promise<boolean> {
 export async function getSheetsClient() {
   const row = await db.query.googleAuth.findFirst();
   if (!row) {
-    throw new Error("Google account not connected. Connect it at /settings/google.");
+    throw new GoogleSheetsUserError("Google account not connected. Connect it at /settings/google.");
   }
 
   const client = getOAuth2Client();
